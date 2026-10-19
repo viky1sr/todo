@@ -7,8 +7,9 @@
 //! page cannot trigger API calls with a simple cross-site form post. Exception:
 //! `POST /api/v1/objects/upload` takes a raw `application/octet-stream` body (same-origin
 //! check still applies) that is streamed to disk by `todo_rest::upload` instead of being
-//! buffered. Only the object routes are access-controlled (`TODO_API_TOKEN`); bind to
-//! loopback or put the console behind an authenticating proxy.
+//! buffered. Production API work is access-controlled: object routes accept a verified
+//! session or `TODO_API_TOKEN`; CPU/storage-affecting console APIs require a session. Only
+//! health and crypto-mode discovery remain public.
 //!
 //! Accounts (optional, [`WebApp::with_auth`]): `POST /api/v1/auth/login`, `POST
 //! /api/v1/auth/logout`, `GET /api/v1/auth/me` and the `/account` page. A login sets an
@@ -31,6 +32,7 @@
 use std::collections::HashMap;
 use std::io::Write;
 use std::net::IpAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
@@ -38,13 +40,17 @@ use askama::Template;
 use rukubo::Rukubo;
 use serde_json::json;
 use todo_database::accounts::{AccountDirectory, AccountError};
-use todo_database::objects::{CatalogError, NewObject, ObjectCatalog};
+use todo_database::objects::{
+    CatalogError, NewObject, ObjectCatalog, ObjectState, UploadTransaction,
+};
 use todo_database::sessions::{Session, SessionStore};
 use todo_rest::server::dispatch;
 use todo_rest::tls::{HANDSHAKE_TIMEOUT, TlsAcceptor};
 use todo_rest::{ObjectError, RestServiceController, UPLOAD_ROUTE, UploadHeaders, UploadReceipt};
+use todo_rest::upload::{UploadLifecycle, UploadLifecycleFuture};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpListener;
+use tokio::sync::Semaphore;
 use zeroize::Zeroizing;
 
 use crate::pages;
@@ -52,7 +58,12 @@ use crate::pages;
 /// Maximum request body (a 4 MiB input hex-encoded plus JSON framing).
 pub const MAX_BODY_BYTES: usize = 12 * 1024 * 1024;
 pub const MAX_HEADER_BYTES: usize = 16 * 1024;
+/// Bound live socket tasks so stalled clients cannot grow memory without limit.
+pub const DEFAULT_MAX_CONCURRENT_CONNECTIONS: usize = 256;
 const READ_TIMEOUT: Duration = Duration::from_secs(30);
+/// Journal writer lease. Heartbeats keep a live upload from being reclaimed by another instance.
+const UPLOAD_LEASE_SECS: u64 = 120;
+const UPLOAD_HEARTBEAT_SECS: u64 = 30;
 /// Sent on HTTPS responses only (RFC 6797: ignored over plain HTTP anyway).
 const HSTS: &str = "Strict-Transport-Security: max-age=31536000\r\n";
 
@@ -377,6 +388,127 @@ fn query_param<'a>(query: Option<&'a str>, key: &str) -> Option<&'a str> {
     None
 }
 
+struct CatalogUploadLifecycle {
+    catalog: Arc<dyn ObjectCatalog>,
+    transaction: UploadTransaction,
+    publishing: AtomicBool,
+    heartbeat_failed: AtomicBool,
+}
+
+impl CatalogUploadLifecycle {
+    fn new(catalog: Arc<dyn ObjectCatalog>, transaction: UploadTransaction) -> Self {
+        Self {
+            catalog,
+            transaction,
+            publishing: AtomicBool::new(false),
+            heartbeat_failed: AtomicBool::new(false),
+        }
+    }
+
+    fn start_heartbeat(self: &Arc<Self>) {
+        let weak = Arc::downgrade(self);
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(UPLOAD_HEARTBEAT_SECS));
+            interval.tick().await; // consume the immediate first tick
+            loop {
+                interval.tick().await;
+                let Some(lifecycle) = weak.upgrade() else {
+                    break;
+                };
+                if lifecycle.publishing_was_journaled() {
+                    break;
+                }
+                if let Err(e) = lifecycle
+                    .catalog
+                    .renew_upload_lease(lifecycle.transaction_id(), UPLOAD_LEASE_SECS)
+                    .await
+                {
+                    // If the publishing transition won the race, the lease no longer matters.
+                    if !lifecycle.publishing_was_journaled() {
+                        lifecycle.heartbeat_failed.store(true, Ordering::Release);
+                        eprintln!(
+                            "catalog: upload lease heartbeat failed for transaction {}: {e}",
+                            lifecycle.transaction_id()
+                        );
+                    }
+                    break;
+                }
+            }
+        });
+    }
+
+    fn transaction_id(&self) -> &str {
+        &self.transaction.transaction_id
+    }
+
+    fn generation(&self) -> u64 {
+        self.transaction.generation
+    }
+
+    fn publishing_was_journaled(&self) -> bool {
+        self.publishing.load(Ordering::Acquire)
+    }
+
+    fn heartbeat_is_healthy(&self) -> bool {
+        !self.heartbeat_failed.load(Ordering::Acquire)
+    }
+}
+
+fn object_from_receipt(owner_id: u64, generation: u64, receipt: &UploadReceipt) -> NewObject {
+    NewObject {
+        owner_id,
+        object_id: receipt.object_id.clone(),
+        generation,
+        state: ObjectState::Healthy,
+        root_cid: receipt.root.to_string(),
+        backend: json_str(&receipt.backend),
+        crypto_mode: json_str(&receipt.crypto_mode),
+        sealed_format_version: receipt.sealed_format_version,
+        nonce: receipt.nonce,
+        tag: receipt.tag,
+        original_size: receipt.original_bytes,
+        compressed_size: receipt.compressed_bytes,
+        sealed_size: receipt.sealed_bytes,
+        encryption_plan: serde_json::to_value(receipt.plan).unwrap_or_default(),
+    }
+}
+
+impl UploadLifecycle for CatalogUploadLifecycle {
+    fn before_publish<'a>(&'a self, receipt: &'a UploadReceipt) -> UploadLifecycleFuture<'a> {
+        Box::pin(async move {
+            if !self.heartbeat_is_healthy() {
+                eprintln!(
+                    "catalog: refusing to publish transaction {} after lease heartbeat failure",
+                    self.transaction_id()
+                );
+                return Err(());
+            }
+            let object = object_from_receipt(
+                self.transaction.owner_id,
+                self.transaction.generation,
+                receipt,
+            );
+            match self
+                .catalog
+                .mark_publishing(&self.transaction.transaction_id, &object)
+                .await
+            {
+                Ok(()) => {
+                    self.publishing.store(true, Ordering::Release);
+                    Ok(())
+                }
+                Err(e) => {
+                    eprintln!(
+                        "catalog: cannot journal transaction {} before publish: {e}",
+                        self.transaction.transaction_id
+                    );
+                    Err(())
+                }
+            }
+        })
+    }
+}
+
 pub struct WebApp {
     controller: Arc<RestServiceController>,
     auth: Option<WebAuth>,
@@ -420,53 +552,135 @@ impl WebApp {
         self.auth.is_some() && self.catalog.is_some()
     }
 
-    /// Records a session user's upload. Without a catalog (or for token clients) the
-    /// response is unchanged and the client must keep CID + nonce itself.
+    /// Finalize a journal-backed session upload. Token-only callers have no PostgreSQL
+    /// owner catalog and retain the legacy stateless response.
     async fn finish_upload(
         &self,
         user: Option<u64>,
+        lifecycle: Option<&CatalogUploadLifecycle>,
         receipt: Result<UploadReceipt, ObjectError>,
     ) -> Response {
-        let mut receipt = match receipt {
+        let receipt = match receipt {
             Ok(r) => r,
             Err(e) => {
+                if let Some(lifecycle) = lifecycle {
+                    if lifecycle.publishing_was_journaled() {
+                        // Do not abort: root metadata was persisted before the pin attempt.
+                        // Startup reconciliation will verify whether the staged/pinned root exists.
+                        eprintln!(
+                            "catalog: transaction {} requires startup reconciliation after publish-path failure",
+                            lifecycle.transaction_id()
+                        );
+                    } else if let Err(abort_error) = lifecycle
+                        .catalog
+                        .abort_writing(lifecycle.transaction_id(), "upload_failed_before_publish")
+                        .await
+                    {
+                        eprintln!(
+                            "catalog: failed to abort transaction {}: {abort_error}",
+                            lifecycle.transaction_id()
+                        );
+                    }
+                }
                 return Response::json(e.status, json!({ "status": "error", "error": e.message }));
             }
         };
+
         let (Some(owner_id), Some(catalog)) = (user, self.catalog_for_sessions()) else {
             return Response::json(200, receipt.json);
         };
-        let row = NewObject {
-            owner_id,
-            object_id: receipt.object_id.clone(),
-            root_cid: receipt.root.to_string(),
-            backend: json_str(&receipt.backend),
-            crypto_mode: json_str(&receipt.crypto_mode),
-            sealed_format_version: receipt.sealed_format_version,
-            nonce: receipt.nonce,
-            tag: receipt.tag,
-            original_size: receipt.original_bytes,
-            compressed_size: receipt.compressed_bytes,
-            sealed_size: receipt.sealed_bytes,
-            encryption_plan: serde_json::to_value(receipt.plan).unwrap_or_default(),
+        let Some(lifecycle) = lifecycle else {
+            eprintln!("catalog: authenticated upload completed without lifecycle journal");
+            return Response::json(500, json!({
+                "status": "error",
+                "error": "object lifecycle journal missing"
+            }));
         };
-        match catalog.record(&row).await {
+        debug_assert_eq!(owner_id, lifecycle.transaction.owner_id);
+        debug_assert_eq!(receipt.object_id, lifecycle.transaction.object_id);
+
+        // The SQL operation is idempotent. A second call resolves the important
+        // ambiguous-commit case where PostgreSQL committed but the first response was lost.
+        let committed = match catalog.commit_upload(lifecycle.transaction_id()).await {
+            Ok(id) => Ok(id),
+            Err(first) => match catalog.commit_upload(lifecycle.transaction_id()).await {
+                Ok(id) => Ok(id),
+                Err(second) => {
+                    eprintln!(
+                        "catalog: transaction {} commit failed ({first}); retry failed ({second}); journal retained",
+                        lifecycle.transaction_id()
+                    );
+                    Err(second)
+                }
+            },
+        };
+
+        match committed {
             Ok(id) => {
-                if let Some(o) = receipt.json.as_object_mut() {
+                let mut out = receipt.json;
+                if let Some(o) = out.as_object_mut() {
                     o.insert("metadata_id".into(), json!(id));
                     o.insert("metadata_store".into(), json!(catalog.kind()));
+                    o.insert("generation".into(), json!(lifecycle.generation()));
+                    o.insert("object_state".into(), json!(ObjectState::Healthy.as_str()));
+                    o.insert(
+                        "transaction_id".into(),
+                        json!(lifecycle.transaction_id()),
+                    );
                 }
-                Response::json(200, receipt.json)
+                Response::json(200, out)
             }
-            Err(e) => {
-                // The ciphertext is already in IPFS; without a row it is unreachable for
-                // this user (it stays encrypted). Report instead of pretending success.
-                eprintln!("catalog: record {}: {e}", row.root_cid);
+            Err(CatalogError::Duplicate) => {
+                let _ = catalog
+                    .abort_upload(lifecycle.transaction_id(), "commit_conflict")
+                    .await;
                 Response::json(
-                    503,
-                    json!({ "status": "error", "error": "metadata store unavailable; object not recorded" }),
+                    409,
+                    json!({ "status": "error", "error": "object generation or root already recorded" }),
                 )
             }
+            Err(_) => Response::json(
+                503,
+                json!({
+                    "status": "error",
+                    "error": "metadata commit pending reconciliation",
+                    "transaction_id": lifecycle.transaction_id(),
+                }),
+            ),
+        }
+    }
+
+    async fn begin_upload_lifecycle(
+        &self,
+        user: Option<u64>,
+        headers: &mut UploadHeaders,
+    ) -> Result<Option<Arc<CatalogUploadLifecycle>>, Response> {
+        let (Some(owner_id), Some(catalog)) = (user, self.catalog_for_sessions()) else {
+            return Ok(None);
+        };
+        let object_id = todo_rest::upload::ensure_object_id(headers).map_err(|e| {
+            Response::json(e.status, json!({ "status": "error", "error": e.message }))
+        })?;
+        match catalog
+            .begin_upload(owner_id, &object_id, UPLOAD_LEASE_SECS)
+            .await
+        {
+            Ok(transaction) => {
+                let lifecycle = Arc::new(CatalogUploadLifecycle::new(
+                    Arc::clone(catalog),
+                    transaction,
+                ));
+                lifecycle.start_heartbeat();
+                Ok(Some(lifecycle))
+            }
+            Err(CatalogError::Duplicate) => Err(Response::json(
+                409,
+                json!({
+                    "status": "error",
+                    "error": "an upload for this object is already active"
+                }),
+            )),
+            Err(e) => Err(catalog_error(e)),
         }
     }
 
@@ -715,6 +929,16 @@ impl WebApp {
         }
         if req.path == VAULT_OBJECTS_ROUTE {
             return self.list_objects(req).await;
+        }
+        let public_discovery = matches!(
+            (req.method.as_str(), req.path.as_str()),
+            ("GET", "/api/v1/health") | ("GET", "/api/v1/crypto-modes")
+        );
+        if self.auth_enabled() && !public_discovery && self.session(req).await.is_none() {
+            return Response::json(
+                401,
+                json!({ "status": "error", "error": "login required" }),
+            );
         }
         let Ok(body) = std::str::from_utf8(&req.body) else {
             return Response::error(400, "body must be UTF-8 JSON");
@@ -980,7 +1204,7 @@ fn same_origin(origin: Option<&str>, host: Option<&str>) -> bool {
     authority.is_some_and(|a| a.eq_ignore_ascii_case(host))
 }
 
-/// Accept plain-HTTP connections forever, one task per connection.
+/// Accept plain-HTTP connections forever with a bounded number of live tasks.
 pub async fn serve(listener: TcpListener, app: Arc<WebApp>) -> std::io::Result<()> {
     serve_with(listener, app, None).await
 }
@@ -992,12 +1216,18 @@ pub async fn serve_with(
     app: Arc<WebApp>,
     tls: Option<TlsAcceptor>,
 ) -> std::io::Result<()> {
+    let connections = Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_CONNECTIONS));
     loop {
+        let permit = match Arc::clone(&connections).acquire_owned().await {
+            Ok(permit) => permit,
+            Err(_) => return Ok(()),
+        };
         let (stream, peer) = listener.accept().await?;
         let app = Arc::clone(&app);
         let tls = tls.clone();
         let peer = Some(peer.ip());
         tokio::spawn(async move {
+            let _permit = permit;
             match tls {
                 None => {
                     let _ = handle_connection(stream, app, "", peer).await;
@@ -1057,14 +1287,19 @@ async fn handle_connection<S: AsyncRead + AsyncWrite + Unpin>(
                     Err(r) => r,
                     Ok(user) => {
                         headers.session_user = user;
-                        let receipt = todo_rest::upload::upload_object(
+                        let lifecycle = match app.begin_upload_lifecycle(user, &mut headers).await {
+                            Ok(lifecycle) => lifecycle,
+                            Err(response) => return write_response(&mut stream, &response, None, extra).await,
+                        };
+                        let receipt = todo_rest::upload::upload_object_with_lifecycle(
                             app.controller(),
                             &headers,
                             &prefix,
                             &mut stream,
+                            lifecycle.as_deref().map(|v| v as &dyn UploadLifecycle),
                         )
                         .await;
-                        app.finish_upload(user, receipt).await
+                        app.finish_upload(user, lifecycle.as_deref(), receipt).await
                     }
                 }
             }
@@ -1124,9 +1359,15 @@ async fn read_request<S: AsyncRead + Unpin>(
     let mut chunk = [0u8; 8192];
     let header_end = loop {
         if let Some(pos) = find_header_end(&buf) {
+            if pos + 4 > MAX_HEADER_BYTES {
+                return Err(ReadError::Respond(Response::error(
+                    431,
+                    "request headers too large",
+                )));
+            }
             break pos;
         }
-        if buf.len() > MAX_HEADER_BYTES {
+        if buf.len() >= MAX_HEADER_BYTES {
             return Err(ReadError::Respond(Response::error(
                 431,
                 "request headers too large",
@@ -1170,6 +1411,9 @@ async fn read_request<S: AsyncRead + Unpin>(
         let value = value.trim();
         match name.trim().to_ascii_lowercase().as_str() {
             "content-length" => {
+                if upload.content_length.is_some() {
+                    return Err(bad("duplicate Content-Length"));
+                }
                 let n: u64 = value.parse().map_err(|_| bad("invalid Content-Length"))?;
                 upload.content_length = Some(n);
                 content_length = usize::try_from(n).unwrap_or(usize::MAX);
@@ -1248,6 +1492,7 @@ fn reason(status: u16) -> &'static str {
         404 => "Not Found",
         405 => "Method Not Allowed",
         408 => "Request Timeout",
+        409 => "Conflict",
         411 => "Length Required",
         413 => "Payload Too Large",
         415 => "Unsupported Media Type",

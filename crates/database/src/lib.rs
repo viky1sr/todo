@@ -4,8 +4,8 @@
 //! - [`accounts`]: Layer 3 user accounts in MariaDB (Argon2id passwords, PII sealed with
 //!   `todo-crypto` AES-256-GCM-SIV), embedded sqlx migrations in `migrations/mariadb`.
 //! - [`sessions`]: Layer 2 login sessions and login rate limiting in Redis.
-//! - [`objects`]: Layer 4 object metadata (owner, CID, nonce, sizes) in PostgreSQL,
-//!   embedded sqlx migrations in `migrations/postgres`.
+//! - [`objects`]: Layer 4 generation-aware object metadata plus a durable upload lifecycle
+//!   journal in PostgreSQL, embedded sqlx migrations in `migrations/postgres`.
 
 pub mod accounts;
 pub mod config;

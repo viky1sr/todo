@@ -16,6 +16,7 @@ pub use upload::{ObjectError, UPLOAD_ROUTE, UploadConfig, UploadHeaders, UploadR
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use todo_crypto::{
     CryptoError, TagEquivalenceReport, assert_aes_gcm_siv_equivalence, assert_polyval_equivalence,
 };
@@ -36,6 +37,8 @@ pub const IPFS_BLOCK_SIZE: usize = todo_ipfs::DEFAULT_CHUNK_SIZE;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RestError {
     BadRequest(String),
+    /// Admission control rejected expensive work before it entered Rayon/spawn_blocking.
+    Busy(&'static str),
     Pipeline(PipelineError),
     Crypto(CryptoError),
     Storage(IpfsError),
@@ -46,6 +49,7 @@ impl fmt::Display for RestError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::BadRequest(e) => write!(f, "bad request: {e}"),
+            Self::Busy(e) => write!(f, "service busy: {e}"),
             Self::Pipeline(e) => write!(f, "{e}"),
             Self::Crypto(e) => write!(f, "{e}"),
             Self::Storage(e) => write!(f, "storage error: {e}"),
@@ -215,10 +219,15 @@ where
         .map_err(|e| RestError::Internal(e.to_string()))
 }
 
+/// Research pipeline calls can each fan out across the Rayon pool. Keep only one admitted
+/// job by default to avoid CPU oversubscription; object transfers have a separate limit.
+pub const DEFAULT_MAX_CONCURRENT_COMPUTE_JOBS: usize = 1;
+
 #[derive(Clone)]
 pub struct RestServiceController {
     ipfs: Arc<ObjectStore<IpfsBackend>>,
     upload: Option<Arc<UploadConfig>>,
+    compute_permits: Arc<Semaphore>,
 }
 
 impl Default for RestServiceController {
@@ -237,6 +246,7 @@ impl RestServiceController {
         Self {
             ipfs: Arc::new(ObjectStore::new(backend)),
             upload: None,
+            compute_permits: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_COMPUTE_JOBS)),
         }
     }
 
@@ -257,17 +267,26 @@ impl RestServiceController {
         Ok(controller)
     }
 
+    /// Non-blocking admission for CPU-heavy research endpoints. Rejecting early keeps
+    /// authenticated bursts from building an unbounded spawn_blocking/Rayon backlog.
+    pub(crate) fn try_compute_permit(&self) -> Result<OwnedSemaphorePermit, RestError> {
+        Arc::clone(&self.compute_permits)
+            .try_acquire_owned()
+            .map_err(|_| RestError::Busy("too many concurrent compute jobs"))
+    }
+
     pub fn upload_config(&self) -> Option<&UploadConfig> {
         self.upload.as_deref()
     }
 
-    /// Fail closed: the object routes decrypt with the server key, so without
-    /// `TODO_API_TOKEN` they may only be served on a loopback address.
+    /// Fail closed: object routes decrypt with the server key and the research API can
+    /// consume substantial CPU/storage, so without `TODO_API_TOKEN` the service may only
+    /// be served on a loopback address.
     pub fn check_exposure(&self, addr: std::net::SocketAddr) -> Result<(), RestError> {
         match self.upload_config() {
             Some(cfg) if !cfg.requires_token() && !addr.ip().is_loopback() => {
                 Err(RestError::BadRequest(format!(
-                    "refusing to serve the object routes on non-loopback {addr} without \
+                    "refusing to serve protected routes on non-loopback {addr} without \
 TODO_API_TOKEN (set a token or bind to 127.0.0.1/::1)"
                 )))
             }

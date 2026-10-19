@@ -410,6 +410,9 @@ async fn catalog_records_uploads_and_scopes_downloads_to_owner() {
     assert_eq!(r.status, 200, "{}", r.body);
     let up = r.json();
     assert_eq!(up["metadata_store"], "memory");
+    assert_eq!(up["generation"], 1);
+    assert_eq!(up["object_state"], "healthy");
+    assert_eq!(up["transaction_id"].as_str().unwrap().len(), 32);
     let cid = up["ipfs_cid"].as_str().unwrap().to_string();
     let nonce = up["nonce_hex"].as_str().unwrap().to_string();
 
@@ -422,6 +425,8 @@ async fn catalog_records_uploads_and_scopes_downloads_to_owner() {
     assert_eq!(rows[0]["nonce_hex"], nonce.as_str());
     assert_eq!(rows[0]["tag_hex"], up["tag_hex"]);
     assert_eq!(rows[0]["object_id"], "arsip.txt");
+    assert_eq!(rows[0]["generation"], 1);
+    assert_eq!(rows[0]["state"], "healthy");
     assert_eq!(rows[0]["original_size_bytes"], data.len());
 
     // Owner: no nonce needed (stored server-side); a wrong nonce still fails the tag.

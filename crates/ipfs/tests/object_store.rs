@@ -35,6 +35,41 @@ async fn roundtrip_across_chunk_boundaries() {
 }
 
 #[tokio::test]
+async fn staged_object_is_not_pinned_until_commit() {
+    let backend = MemoryBlockStore::new();
+    let store = ObjectStore::new(backend.clone())
+        .with_chunk_size(32)
+        .unwrap();
+    let staged = store
+        .stage_object("transactional", data(100, 7))
+        .await
+        .unwrap();
+    assert!(!backend.is_pinned(&staged.root, true).await);
+    let root = staged.root.clone();
+    let published = store.commit_staged(staged).await.unwrap();
+    assert_eq!(published.root, root);
+    assert!(backend.is_pinned(&published.root, true).await);
+}
+
+#[tokio::test]
+async fn staged_commit_rejects_missing_child_before_pin() {
+    let backend = MemoryBlockStore::new();
+    let store = ObjectStore::new(backend.clone())
+        .with_chunk_size(32)
+        .unwrap();
+    let staged = store
+        .stage_object("transactional-missing", data(100, 8))
+        .await
+        .unwrap();
+    let missing = staged.manifest.blocks()[0].cid.clone();
+    backend.drop_block(&missing).await;
+    assert!(matches!(
+        store.commit_staged(staged).await,
+        Err(IpfsError::NotFound(cid)) if cid == missing
+    ));
+}
+
+#[tokio::test]
 async fn content_addressing_is_deterministic_and_deduplicates() {
     let store = ObjectStore::new(MemoryBlockStore::new())
         .with_chunk_size(16)

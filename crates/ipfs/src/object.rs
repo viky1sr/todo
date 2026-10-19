@@ -14,6 +14,16 @@ pub const DEFAULT_MAX_OBJECT_SIZE: u64 = 1 << 30;
 /// default chunk size).
 pub const PUT_BATCH_BLOCKS: usize = 16;
 
+/// Object whose blocks and root manifest exist in the backend but are not recursively
+/// pinned yet. This is the durability boundary used by the production upload journal:
+/// persist `root` + metadata first, then call [`ObjectStore::commit_staged`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StagedObject {
+    pub root: Cid,
+    pub manifest: ObjectManifest,
+    pub backend: BackendKind,
+}
+
 /// Result of publishing an object. `root` is the trust anchor callers must keep.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PublishedObject {
@@ -65,17 +75,17 @@ impl<S: BlockStore> ObjectStore<S> {
         self.max_object_size
     }
 
-    /// Chunk, hash, store and pin an object. The manifest is written only after every
-    /// chunk is stored, and the root is pinned recursively last.
+    /// Chunk, hash and store an object plus its root manifest, but do **not** recursively
+    /// pin the root yet. Unpinned blocks are staging data and remain GC-eligible.
     ///
-    /// `data` may be any byte container (`Vec<u8>`, a read-only memory map, ...). Blocks
-    /// are created and stored in batches of [`PUT_BATCH_BLOCKS`], so at most one batch
-    /// of block copies is held in memory besides `data` itself.
-    pub async fn put_object<D>(
+    /// Production callers should durably journal [`StagedObject::root`] and the public
+    /// sealed-object metadata before [`Self::commit_staged`]. This ordering closes the
+    /// crash window between an IPFS pin and the PostgreSQL metadata commit.
+    pub async fn stage_object<D>(
         &self,
         object_id: &str,
         data: D,
-    ) -> Result<PublishedObject, IpfsError>
+    ) -> Result<StagedObject, IpfsError>
     where
         D: AsRef<[u8]> + Send + Sync + 'static,
     {
@@ -116,13 +126,50 @@ impl<S: BlockStore> ObjectStore<S> {
         let manifest = ObjectManifest::new(object_id, links)?;
         let root_block = manifest.to_block()?;
         self.store.put_block(&root_block).await?;
-        self.store.pin(root_block.cid(), true).await?;
 
-        Ok(PublishedObject {
+        Ok(StagedObject {
             root: root_block.cid().clone(),
             manifest,
             backend: self.store.kind(),
         })
+    }
+
+    /// Atomically publish a staged root according to the backend's recursive-pin
+    /// semantics. The operation is idempotent for content-addressed backends.
+    pub async fn commit_staged(
+        &self,
+        staged: StagedObject,
+    ) -> Result<PublishedObject, IpfsError> {
+        // Re-read the complete DAG before making it durable/visible. `write_object_to`
+        // verifies the root CID, every child CID and every declared child size while
+        // streaming into a sink, so a missing/corrupt staged chunk cannot be pinned as
+        // a committed object. The sealed bytes are never materialized here.
+        let mut sink = tokio::io::sink();
+        let manifest = self.write_object_to(&staged.root, &mut sink).await?;
+        if manifest != staged.manifest {
+            return Err(IpfsError::InvalidManifest(
+                "staged root manifest changed before commit".into(),
+            ));
+        }
+        self.store.pin(&staged.root, true).await?;
+        Ok(PublishedObject {
+            root: staged.root,
+            manifest,
+            backend: staged.backend,
+        })
+    }
+
+    /// Convenience path for non-journal callers: stage and immediately commit.
+    pub async fn put_object<D>(
+        &self,
+        object_id: &str,
+        data: D,
+    ) -> Result<PublishedObject, IpfsError>
+    where
+        D: AsRef<[u8]> + Send + Sync + 'static,
+    {
+        let staged = self.stage_object(object_id, data).await?;
+        self.commit_staged(staged).await
     }
 
     /// Fetch and verify the manifest for a trusted `root`.

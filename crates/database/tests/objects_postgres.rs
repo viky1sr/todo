@@ -7,7 +7,9 @@
 //! ```
 
 use serde_json::json;
-use todo_database::objects::{CatalogError, NewObject, ObjectCatalog, PgCatalog, postgres_options};
+use todo_database::objects::{
+    CatalogError, NewObject, ObjectCatalog, ObjectState, PgCatalog, UploadState, postgres_options,
+};
 use todo_database::secrets::read_secret_file;
 
 async fn catalog() -> PgCatalog {
@@ -38,6 +40,8 @@ fn object(owner_id: u64, tag: u8) -> NewObject {
     NewObject {
         owner_id,
         object_id: format!("doc-{tag}.pdf"),
+        generation: 1,
+        state: ObjectState::Healthy,
         root_cid: format!("bafytest{owner_id:x}x{tag}"),
         backend: "mock".into(),
         crypto_mode: "aes-gcm-siv".into(),
@@ -94,3 +98,40 @@ async fn record_list_find_owner_scoped() {
         .await
         .unwrap();
 }
+#[tokio::test]
+#[ignore]
+async fn journal_reserves_generation_and_commits_idempotently() {
+    let c = catalog().await;
+    let owner = rand_u64() + 10;
+    let tx1 = c.begin_upload(owner, "versioned.bin", 120).await.unwrap();
+    assert_eq!(tx1.generation, 1);
+    assert_eq!(tx1.state, UploadState::Writing);
+
+    let mut obj = object(owner, 9);
+    obj.object_id = "versioned.bin".into();
+    obj.generation = tx1.generation;
+    c.mark_publishing(&tx1.transaction_id, &obj)
+        .await
+        .unwrap();
+    let id = c.commit_upload(&tx1.transaction_id).await.unwrap();
+    assert_eq!(c.commit_upload(&tx1.transaction_id).await.unwrap(), id);
+
+    let tx2 = c.begin_upload(owner, "versioned.bin", 120).await.unwrap();
+    assert_eq!(tx2.generation, 2);
+    c.abort_upload(&tx2.transaction_id, "test_abort")
+        .await
+        .unwrap();
+    assert!(c.pending_uploads(50).await.unwrap().is_empty());
+
+    sqlx::query("DELETE FROM object_upload_transactions WHERE owner_id = $1")
+        .bind(owner as i64)
+        .execute(c.pool())
+        .await
+        .unwrap();
+    sqlx::query("DELETE FROM objects WHERE owner_id = $1")
+        .bind(owner as i64)
+        .execute(c.pool())
+        .await
+        .unwrap();
+}
+

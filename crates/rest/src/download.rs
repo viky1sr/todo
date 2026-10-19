@@ -15,9 +15,9 @@
 //! a 200. The key is the server-side `TODO_UPLOAD_KEY_HEX`; the nonce is the one
 //! returned by the upload (format version 1 does not store it).
 //!
-//! **No authorization:** CID and nonce are not secrets, so anyone who can reach this
-//! route and knows both can download the plaintext. Put the service behind
-//! authentication before exposing it.
+//! Authorization is enforced before fetch/decrypt: session-authenticated web callers are
+//! already verified by `todo-web`; direct REST callers use the configured bearer token. CID and
+//! nonce are public parameters and are never treated as authorization secrets.
 
 use crate::upload::{ObjectError, SPOOL_BUFFER, TAG_LEN, TempFile, decode_hex};
 use crate::{RestServiceController, run_blocking};
@@ -200,8 +200,16 @@ fn malformed(msg: &str) -> ObjectError {
     ObjectError::new(422, format!("malformed sealed object: {msg}"))
 }
 
-fn u64_at(buf: &[u8], at: usize) -> u64 {
-    u64::from_le_bytes(buf[at..at + 8].try_into().expect("8 bytes"))
+fn u64_at(buf: &[u8], at: usize) -> Result<u64, ObjectError> {
+    let end = at
+        .checked_add(8)
+        .ok_or_else(|| malformed("integer offset overflow"))?;
+    let bytes = buf
+        .get(at..end)
+        .ok_or_else(|| malformed("truncated integer"))?;
+    let mut word = [0u8; 8];
+    word.copy_from_slice(bytes);
+    Ok(u64::from_le_bytes(word))
 }
 
 /// Verify and decrypt a sealed stream (format version 1, AES-GCM-SIV) stored in
@@ -236,7 +244,7 @@ pub(crate) fn open_file(
             "unsupported sealed format (only version 1 / AES-GCM-SIV)",
         ));
     }
-    let count = usize::try_from(u64_at(&map, 5)).map_err(|_| malformed("segment count"))?;
+    let count = usize::try_from(u64_at(&map, 5)?).map_err(|_| malformed("segment count"))?;
     if count > (total - FIXED_HEADER) / DESCRIPTOR_LEN {
         return Err(malformed("segment count too large"));
     }
@@ -245,7 +253,7 @@ pub(crate) fn open_file(
     if total < header_len + TAG_LEN {
         return Err(malformed("truncated"));
     }
-    let ct_len = u64_at(&map, aad_len);
+    let ct_len = u64_at(&map, aad_len)?;
     if ct_len != (total - header_len - TAG_LEN) as u64 {
         return Err(malformed("ciphertext length mismatch"));
     }
@@ -253,14 +261,14 @@ pub(crate) fn open_file(
     let (mut compressed_sum, mut uncompressed_sum) = (0u64, 0u64);
     for i in 0..count {
         let at = FIXED_HEADER + i * DESCRIPTOR_LEN;
-        let (c, u) = (u64_at(&map, at), u64_at(&map, at + 8));
+        let (c, u) = (u64_at(&map, at)?, u64_at(&map, at + 8)?);
         compressed_sum = compressed_sum
             .checked_add(c)
             .ok_or_else(|| malformed("size overflow"))?;
         uncompressed_sum = uncompressed_sum
             .checked_add(u)
             .ok_or_else(|| malformed("size overflow"))?;
-        frames.push((c as usize, u));
+        frames.push((usize::try_from(c).map_err(|_| malformed("frame size"))?, u));
     }
     if compressed_sum != ct_len {
         return Err(malformed("frame sizes do not match ciphertext length"));
@@ -273,7 +281,11 @@ pub(crate) fn open_file(
     }
 
     let aad = map[..aad_len].to_vec();
-    let tag: [u8; 16] = map[total - TAG_LEN..].try_into().expect("16 bytes");
+    let mut tag = [0u8; TAG_LEN];
+    tag.copy_from_slice(
+        map.get(total - TAG_LEN..)
+            .ok_or_else(|| malformed("truncated authentication tag"))?,
+    );
     let ct_end = total - TAG_LEN;
     let plan = SegmentationStrategy::default()
         .plan(ct_end - header_len)
@@ -313,7 +325,10 @@ pub(crate) fn open_file(
                 .map_err(|e| ObjectError::internal("zstd init", e))?
                 .single_frame();
             // Read at most one byte past the declared size to detect overlong frames.
-            let written = io::copy(&mut io::Read::take(&mut dec, declared + 1), &mut out)
+            let read_limit = declared
+                .checked_add(1)
+                .ok_or_else(|| malformed("declared frame size overflow"))?;
+            let written = io::copy(&mut io::Read::take(&mut dec, read_limit), &mut out)
                 .map_err(|_| ObjectError::new(422, "corrupt compressed payload"))?;
             if written != declared {
                 return Err(ObjectError::new(

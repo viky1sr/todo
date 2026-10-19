@@ -13,10 +13,12 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::sync::Arc;
+use std::time::Duration;
 use todo_ipfs::IpfsError;
 use todo_zstd::{PipelineError, SealedStream};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpListener;
+use tokio::sync::Semaphore;
 use zeroize::Zeroizing;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -183,11 +185,16 @@ pub async fn serve_with(
     controller: Arc<RestServiceController>,
     tls: Option<TlsAcceptor>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let connections = Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_CONNECTIONS));
     loop {
+        // Acquire before accept so the number of live connection tasks is bounded. Excess
+        // clients remain in the kernel listen backlog instead of allocating Tokio tasks.
+        let permit = Arc::clone(&connections).acquire_owned().await?;
         let (socket, _) = listener.accept().await?;
         let controller = Arc::clone(&controller);
         let tls = tls.clone();
         tokio::spawn(async move {
+            let _permit = permit;
             let result = match tls {
                 None => handle_connection(socket, controller).await,
                 Some(acceptor) => {
@@ -206,6 +213,7 @@ pub async fn serve_with(
 
 pub fn status_of(err: &RestError) -> u16 {
     match err {
+        RestError::Busy(_) => 429,
         RestError::BadRequest(_)
         | RestError::Crypto(_)
         | RestError::Pipeline(PipelineError::Crypto(_))
@@ -385,12 +393,28 @@ pub async fn dispatch(
     if !API_ROUTES.contains(&(method, path)) {
         return (404, json!({ "error": "route not found" }));
     }
+    let _compute_permit = if api_route_requires_compute(method, path) {
+        match controller.try_compute_permit() {
+            Ok(permit) => Some(permit),
+            Err(e) => return (status_of(&e), json!({ "error": e.to_string() })),
+        }
+    } else {
+        None
+    };
     match route(method, path, body, controller).await {
         Ok(v) => (200, v),
         Err(e) => (status_of(&e), json!({ "error": e.to_string() })),
     }
 }
 
+/// Upper bound on concurrently accepted connections. This bounds socket/task memory even
+/// when clients connect and then stop sending bytes.
+pub const DEFAULT_MAX_CONCURRENT_CONNECTIONS: usize = 256;
+/// Whole-request deadline for receiving HTTP headers (slowloris protection).
+pub const HEADER_READ_TIMEOUT: Duration = Duration::from_secs(10);
+/// Whole-request deadline for receiving a buffered JSON body. Object uploads have their own
+/// streaming idle timeout and do not use this value.
+pub const JSON_BODY_READ_TIMEOUT: Duration = Duration::from_secs(30);
 /// Upper bound on request headers.
 pub const MAX_HEADER_BYTES: usize = 16 * 1024;
 /// Upper bound on JSON request bodies (the upload route streams to disk instead).
@@ -400,46 +424,89 @@ fn find_header_end(buf: &[u8]) -> Option<usize> {
     buf.windows(4).position(|w| w == b"\r\n\r\n")
 }
 
+/// Public discovery endpoints remain unauthenticated. All CPU/storage-affecting REST API
+/// routes require the same bearer token as object transfer routes when a token is configured.
+fn api_route_requires_auth(method: &str, path: &str) -> bool {
+    API_ROUTES.contains(&(method, path))
+        && !matches!(
+            (method, path),
+            ("GET", "/api/v1/health") | ("GET", "/api/v1/crypto-modes")
+        )
+}
+
+fn api_route_requires_compute(method: &str, path: &str) -> bool {
+    api_route_requires_auth(method, path)
+}
+
 async fn handle_connection<S: AsyncRead + AsyncWrite + Unpin>(
     mut stream: S,
     controller: Arc<RestServiceController>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut buffer = Vec::with_capacity(8192);
     let mut chunk = vec![0u8; 65536];
+    let header_deadline = tokio::time::Instant::now() + HEADER_READ_TIMEOUT;
     let header_end = loop {
         if let Some(pos) = find_header_end(&buffer) {
+            if pos + 4 > MAX_HEADER_BYTES {
+                return write_json(&mut stream, 431, &json!({ "error": "headers too large" })).await;
+            }
             break pos;
         }
-        if buffer.len() > MAX_HEADER_BYTES {
+        if buffer.len() >= MAX_HEADER_BYTES {
             return write_json(&mut stream, 431, &json!({ "error": "headers too large" })).await;
         }
-        let n = stream.read(&mut chunk).await?;
+        let n = match tokio::time::timeout_at(header_deadline, stream.read(&mut chunk)).await {
+            Ok(read) => read?,
+            Err(_) => {
+                return write_json(&mut stream, 408, &json!({ "error": "request header timeout" }))
+                    .await;
+            }
+        };
         if n == 0 {
             return Ok(());
         }
         buffer.extend_from_slice(&chunk[..n]);
     };
 
-    let head = String::from_utf8_lossy(&buffer[..header_end]).into_owned();
+    let head = match std::str::from_utf8(&buffer[..header_end]) {
+        Ok(head) => head,
+        Err(_) => return write_json(&mut stream, 400, &json!({ "error": "invalid header" })).await,
+    };
     let mut lines = head.split("\r\n");
     let mut parts = lines.next().unwrap_or("").split_whitespace();
-    let method = parts.next().unwrap_or("GET").to_string();
-    let path = parts.next().unwrap_or("/").to_string();
+    let (Some(method), Some(path), Some(version)) = (parts.next(), parts.next(), parts.next()) else {
+        return write_json(&mut stream, 400, &json!({ "error": "malformed request line" })).await;
+    };
+    if parts.next().is_some() || !version.starts_with("HTTP/1.") || !path.starts_with('/') {
+        return write_json(&mut stream, 400, &json!({ "error": "unsupported request" })).await;
+    }
+    let method = method.to_string();
+    let path = path.to_string();
 
     let mut headers = UploadHeaders::default();
     for line in lines {
         let Some((name, value)) = line.split_once(':') else {
-            continue;
+            return write_json(&mut stream, 400, &json!({ "error": "malformed header" })).await;
         };
         let value = value.trim();
         match name.trim().to_ascii_lowercase().as_str() {
-            "content-length" => match value.parse() {
-                Ok(n) => headers.content_length = Some(n),
-                Err(_) => {
-                    let body = json!({ "error": "invalid Content-Length" });
-                    return write_json(&mut stream, 400, &body).await;
+            "content-length" => {
+                if headers.content_length.is_some() {
+                    return write_json(
+                        &mut stream,
+                        400,
+                        &json!({ "error": "duplicate Content-Length" }),
+                    )
+                    .await;
                 }
-            },
+                match value.parse() {
+                    Ok(n) => headers.content_length = Some(n),
+                    Err(_) => {
+                        let body = json!({ "error": "invalid Content-Length" });
+                        return write_json(&mut stream, 400, &body).await;
+                    }
+                }
+            }
             "transfer-encoding" => headers.chunked = true,
             "content-type" => headers.content_type = Some(value.to_string()),
             "x-object-id" => headers.object_id = Some(value.to_string()),
@@ -456,6 +523,14 @@ Access-Control-Allow-Headers: Content-Type, X-Object-Id, Authorization\r\n\
 Content-Length: 0\r\n\r\n";
         stream.write_all(response.as_bytes()).await?;
         return Ok(());
+    }
+    if headers.chunked {
+        return write_json(
+            &mut stream,
+            411,
+            &json!({ "error": "Transfer-Encoding is not supported; send Content-Length" }),
+        )
+        .await;
     }
 
     if method == "GET" && download::parse_target(&path).is_some() {
@@ -487,6 +562,40 @@ Content-Length: 0\r\n\r\n";
         return write_json(&mut stream, status, &body).await;
     }
 
+    if method == "POST" && API_ROUTES.contains(&(method.as_str(), path.as_str())) {
+        if headers.content_length.is_none() {
+            return write_json(&mut stream, 411, &json!({ "error": "Content-Length required" }))
+                .await;
+        }
+        let is_json = headers
+            .content_type
+            .as_deref()
+            .and_then(|ct| ct.split(';').next())
+            .is_some_and(|ct| ct.trim().eq_ignore_ascii_case("application/json"));
+        if !is_json {
+            return write_json(
+                &mut stream,
+                415,
+                &json!({ "error": "Content-Type must be application/json" }),
+            )
+            .await;
+        }
+    }
+
+    if api_route_requires_auth(&method, &path)
+        && let Some(cfg) = controller.upload_config()
+    {
+        let auth = headers.authorization.as_deref().map(String::as_str);
+        if let Err(e) = cfg.authorize(auth) {
+            return write_json(
+                &mut stream,
+                e.status,
+                &json!({ "status": "error", "error": e.message }),
+            )
+            .await;
+        }
+    }
+
     let len = usize::try_from(headers.content_length.unwrap_or(0)).unwrap_or(usize::MAX);
     if len > MAX_JSON_BODY_BYTES {
         return write_json(
@@ -497,11 +606,19 @@ Content-Length: 0\r\n\r\n";
         .await;
     }
     let mut body = prefix[..prefix.len().min(len)].to_vec();
+    let body_deadline = tokio::time::Instant::now() + JSON_BODY_READ_TIMEOUT;
     while body.len() < len {
         let want = (len - body.len()).min(chunk.len());
-        let n = stream.read(&mut chunk[..want]).await?;
+        let n = match tokio::time::timeout_at(body_deadline, stream.read(&mut chunk[..want])).await {
+            Ok(read) => read?,
+            Err(_) => {
+                return write_json(&mut stream, 408, &json!({ "error": "request body timeout" }))
+                    .await;
+            }
+        };
         if n == 0 {
-            return Ok(());
+            return write_json(&mut stream, 400, &json!({ "error": "truncated request body" }))
+                .await;
         }
         body.extend_from_slice(&chunk[..n]);
     }
@@ -598,5 +715,18 @@ mod tests {
     fn auth_failure_is_client_error() {
         let e = RestError::Pipeline(PipelineError::Crypto(CryptoError::AuthenticationFailed));
         assert_eq!(status_of(&e), 400);
+    }
+
+    #[test]
+    fn only_safe_discovery_routes_are_public() {
+        assert!(!api_route_requires_auth("GET", "/api/v1/health"));
+        assert!(!api_route_requires_auth("GET", "/api/v1/crypto-modes"));
+        assert!(api_route_requires_auth("GET", "/api/v1/benchmark"));
+        assert!(api_route_requires_auth("POST", "/api/v1/pipeline/process"));
+        assert!(api_route_requires_auth("POST", "/api/v1/ipfs/publish"));
+        assert!(!api_route_requires_auth("GET", "/not-an-api-route"));
+        assert!(!api_route_requires_compute("GET", "/api/v1/health"));
+        assert!(api_route_requires_compute("GET", "/api/v1/benchmark"));
+        assert!(api_route_requires_compute("POST", "/api/v1/pipeline/verify"));
     }
 }

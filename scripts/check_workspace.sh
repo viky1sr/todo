@@ -28,6 +28,13 @@ if command -v cargo >/dev/null 2>&1; then cargo --version; else printf 'cargo: N
 if [[ -f "$ROOT/Cargo.lock" ]]; then
   if command -v sha256sum >/dev/null 2>&1; then sha256sum "$ROOT/Cargo.lock"; fi
 else printf 'WARN: Cargo.lock missing (do not regenerate without review).\n'; fi
+if command -v git >/dev/null 2>&1 && git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  tracked_secrets="$(git -C "$ROOT" ls-files -- 'secrets/**' '.env' '.env.*' | grep -vE '(^|/)([^/]*\.)?env\.example$' || true)"
+  if [[ -n "$tracked_secrets" ]]; then
+    printf 'ERROR: secret-bearing paths are tracked by Git:\n%s\n' "$tracked_secrets" >&2
+    exit 2
+  fi
+fi
 missing=0
 for p in crates/crypto crates/zstd crates/ipfs crates/web crates/rest; do
   if [[ ! -f "$ROOT/$p/Cargo.toml" ]]; then
@@ -49,12 +56,12 @@ fi
 cd "$ROOT"
 commands=(
   'cargo fmt --all -- --check'
-  'cargo check --workspace --all-targets'
-  'cargo clippy --workspace --all-targets -- -D warnings'
-  'cargo test --workspace'
+  'cargo check --workspace --all-targets --locked'
+  'cargo clippy --workspace --all-targets --locked -- -D warnings'
+  'cargo test --workspace --locked'
 )
 if [[ "$MODE" == release ]]; then
-  commands+=( 'cargo test --workspace --release' 'cargo build --release' )
+  commands+=( 'cargo test --workspace --release --locked' 'cargo build --workspace --release --locked' )
 fi
 for line in "${commands[@]}"; do
   printf '\nRUN: %s\n' "$line"

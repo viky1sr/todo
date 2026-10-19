@@ -28,6 +28,10 @@ pub const DEFAULT_POLYVAL_SEGMENT_SIZE: usize = 64 * 1024;
 /// POLYVAL block size in bytes.
 pub const POLYVAL_BLOCK_SIZE: usize = 16;
 
+/// Small sequential leaf used by the fused divide-and-conquer tree. This avoids spawning
+/// Rayon work for every individual segment while keeping tree depth logarithmic.
+const TREE_LEAF_SEGMENTS: usize = 8;
+
 /// Reject segment sizes that would place zero-padding in the middle of the stream.
 pub fn validate_segment_size(segment_size: usize) -> Result<(), CryptoError> {
     if segment_size == 0 || !segment_size.is_multiple_of(POLYVAL_BLOCK_SIZE) {
@@ -100,22 +104,73 @@ pub(crate) fn polyval_part_parallel_linear(
         .fold(PolyvalPart::empty(), |acc, part| acc.combine(part))
 }
 
-/// Ordered recursive tree reduction. Left and right halves may be evaluated concurrently,
-/// but `left.combine(right)` is always performed in original stream order.
-fn reduce_ordered(parts: &[PolyvalPart]) -> PolyvalPart {
-    match parts.len() {
-        0 => PolyvalPart::empty(),
-        1 => parts[0],
-        2 => parts[0].combine(parts[1]),
-        len => {
-            let mid = len / 2;
-            let (left, right) = rayon::join(
-                || reduce_ordered(&parts[..mid]),
-                || reduce_ordered(&parts[mid..]),
-            );
-            left.combine(right)
-        }
+fn segment_part(
+    h_key: &[u8; 16],
+    segment: &[u8],
+    segment_size: usize,
+    full_blocks: u64,
+    full_power: FieldElement,
+) -> PolyvalPart {
+    if segment.len() == segment_size {
+        polyval_part_sequential_with_power(h_key, segment, full_blocks, full_power)
+    } else {
+        polyval_part_sequential(h_key, segment)
     }
+}
+
+/// Fused ordered divide-and-conquer evaluation. Unlike the measurement baseline, the primary
+/// path does not first materialize one `PolyvalPart` per segment. Each leaf hashes a small run
+/// of adjacent segments and the recursion composes left before right, preserving the exact
+/// concatenation order required by RFC 8452.
+fn reduce_data_ordered(
+    h_key: &[u8; 16],
+    data: &[u8],
+    segment_size: usize,
+    full_blocks: u64,
+    full_power: FieldElement,
+) -> PolyvalPart {
+    let segments = segment_count(data.len(), segment_size);
+    if segments == 0 {
+        return PolyvalPart::empty();
+    }
+    if segments <= TREE_LEAF_SEGMENTS {
+        return data.chunks(segment_size).fold(PolyvalPart::empty(), |acc, segment| {
+            acc.combine(segment_part(
+                h_key,
+                segment,
+                segment_size,
+                full_blocks,
+                full_power,
+            ))
+        });
+    }
+
+    // Split only on a segment boundary. Therefore a partial final POLYVAL block can occur only
+    // in the right-most subtree, exactly as in the sequential byte stream.
+    let left_segments = segments / 2;
+    let split = left_segments * segment_size;
+    let (left_data, right_data) = data.split_at(split);
+    let (left, right) = rayon::join(
+        || {
+            reduce_data_ordered(
+                h_key,
+                left_data,
+                segment_size,
+                full_blocks,
+                full_power,
+            )
+        },
+        || {
+            reduce_data_ordered(
+                h_key,
+                right_data,
+                segment_size,
+                full_blocks,
+                full_power,
+            )
+        },
+    );
+    left.combine(right)
 }
 
 /// Caller must have validated `segment_size`.
@@ -130,8 +185,16 @@ pub(crate) fn polyval_part_parallel(
         return polyval_part_sequential(h_key, data);
     }
 
-    let parts = local_parts(h_key, data, segment_size);
-    reduce_ordered(&parts)
+    let h = FieldElement::from(*h_key);
+    let full_blocks = (segment_size / POLYVAL_BLOCK_SIZE) as u64;
+    let full_power = dot_pow(h, full_blocks);
+    reduce_data_ordered(
+        h_key,
+        data,
+        segment_size,
+        full_blocks,
+        full_power,
+    )
 }
 
 #[cfg(test)]
@@ -191,6 +254,23 @@ mod tests {
         let h = [0x93u8; 16];
         let seg = 64usize;
         let data: Vec<u8> = (0..(5 * seg + 7)).map(|i| (i * 11 % 251) as u8).collect();
+        assert_eq!(
+            polyval_parallel(&h, &data, seg).unwrap(),
+            polyval_sequential(&h, &data)
+        );
+    }
+
+    #[test]
+    fn fused_tree_matches_linear_for_many_segments() {
+        let h = [0x5au8; 16];
+        let seg = 16usize;
+        let data: Vec<u8> = (0..(257 * seg + 13))
+            .map(|i| (i.wrapping_mul(73) % 251) as u8)
+            .collect();
+        assert_eq!(
+            polyval_parallel(&h, &data, seg),
+            polyval_parallel_linear_reduce(&h, &data, seg)
+        );
         assert_eq!(
             polyval_parallel(&h, &data, seg).unwrap(),
             polyval_sequential(&h, &data)

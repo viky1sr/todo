@@ -39,7 +39,7 @@ hkdf = "0.13.0"
 zeroize = "1.8"
 getrandom = { version = "0.4", features = ["wasm_js"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "multipart", "http2", "query"] }
-rustls = { version = "0.23.45", default-features = false, features = ["aws_lc_rs", "std"] }
+rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs", "std"] }
 tokio-rustls = { version = "0.26.6", default-features = false, features = ["aws_lc_rs"] }
 flate2 = "1.1"
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "mysql", "postgres", "migrate", "macros", "json"] }

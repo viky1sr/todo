@@ -34,9 +34,11 @@ use memmap2::{Mmap, MmapOptions};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::fmt;
+use std::future::Future;
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufWriter, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use todo_crypto::{CryptoMode, SegmentPlan};
@@ -630,6 +632,37 @@ pub struct UploadReceipt {
     pub json: Value,
 }
 
+/// Async hook used by the production web layer to durably persist the deterministic
+/// root and public sealed-object metadata after staging but before the recursive pin.
+/// Returning `Err(())` leaves staged blocks unpinned/GC-eligible and fails the upload.
+pub type UploadLifecycleFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<(), ()>> + Send + 'a>>;
+
+pub trait UploadLifecycle: Send + Sync {
+    fn before_publish<'a>(&'a self, receipt: &'a UploadReceipt) -> UploadLifecycleFuture<'a>;
+}
+
+/// Ensure a validated object id exists before body processing. Front ends use this to
+/// reserve a durable generation in the journal before the upload starts.
+fn resolved_object_id(current: Option<&str>) -> Result<String, ObjectError> {
+    let object_id = match current {
+        Some(id) => id.to_owned(),
+        None => {
+            let mut rnd = [0u8; 8];
+            getrandom::fill(&mut rnd).map_err(|e| ObjectError::internal("id", e))?;
+            format!("upload-{}", encode_hex(&rnd))
+        }
+    };
+    todo_ipfs::manifest::validate_object_id(&object_id)?;
+    Ok(object_id)
+}
+
+pub fn ensure_object_id(headers: &mut UploadHeaders) -> Result<String, ObjectError> {
+    let object_id = resolved_object_id(headers.object_id.as_deref())?;
+    headers.object_id = Some(object_id.clone());
+    Ok(object_id)
+}
+
 /// Validate, spool, seal and publish one upload. Returns `(status, JSON body)`.
 pub async fn handle_upload<R: AsyncRead + Unpin>(
     controller: &RestServiceController,
@@ -649,6 +682,18 @@ pub async fn upload_object<R: AsyncRead + Unpin>(
     headers: &UploadHeaders,
     prefix: &[u8],
     reader: &mut R,
+) -> Result<UploadReceipt, ObjectError> {
+    upload_object_with_lifecycle(controller, headers, prefix, reader, None).await
+}
+
+/// Journal-aware upload used by the production web layer. The lifecycle hook executes
+/// after all IPFS blocks + root manifest are staged and before the recursive pin.
+pub async fn upload_object_with_lifecycle<R: AsyncRead + Unpin>(
+    controller: &RestServiceController,
+    headers: &UploadHeaders,
+    prefix: &[u8],
+    reader: &mut R,
+    lifecycle: Option<&dyn UploadLifecycle>,
 ) -> Result<UploadReceipt, ObjectError> {
     let Some(cfg) = controller.upload_config() else {
         return Err(ObjectError::new(
@@ -680,15 +725,7 @@ pub async fn upload_object<R: AsyncRead + Unpin>(
             format!("upload exceeds {} bytes", cfg.max_upload_bytes),
         ));
     }
-    let object_id = match &headers.object_id {
-        Some(id) => id.clone(),
-        None => {
-            let mut rnd = [0u8; 8];
-            getrandom::fill(&mut rnd).map_err(|e| ObjectError::internal("id", e))?;
-            format!("upload-{}", encode_hex(&rnd))
-        }
-    };
-    todo_ipfs::manifest::validate_object_id(&object_id)?;
+    let object_id = resolved_object_id(headers.object_id.as_deref())?;
     let _permit = Arc::clone(&cfg.permits)
         .try_acquire_owned()
         .map_err(|_| ObjectError::new(429, "too many concurrent uploads"))?;
@@ -726,19 +763,18 @@ pub async fn upload_object<R: AsyncRead + Unpin>(
     let (original_bytes, compressed_bytes) = (sealed.original_bytes, sealed.compressed_bytes);
     let sealed_bytes = sealed.bytes.len() as u64;
     let t1 = Instant::now();
-    let published = controller
+    let staged = controller
         .ipfs_store()
-        .put_object(&object_id, sealed)
+        .stage_object(&object_id, sealed)
         .await?;
-    let publish = t1.elapsed();
 
     let mut out = json!({
         "status": "success",
-        "ipfs_cid": published.root,
-        "backend": published.backend,
-        "backend_label": published.backend.label(),
+        "ipfs_cid": staged.root,
+        "backend": staged.backend,
+        "backend_label": staged.backend.label(),
         "object_id": object_id,
-        "ipfs_blocks": published.manifest.blocks().len(),
+        "ipfs_blocks": staged.manifest.blocks().len(),
         "crypto_mode": CryptoMode::AesGcmSiv,
         "sealed_format_version": SEALED_STREAM_VERSION,
         "compression_mode": "single-frame",
@@ -746,16 +782,15 @@ pub async fn upload_object<R: AsyncRead + Unpin>(
         "aead_messages": 1,
         "key_source": "server (TODO_UPLOAD_KEY_HEX)",
         "receive_ms": ms(receive),
-        "publish_ms": ms(publish),
         "timing_note": "single run, wall clock; not a benchmark",
     });
     if let (Value::Object(o), Value::Object(s)) = (&mut out, summary) {
         o.extend(s);
     }
-    Ok(UploadReceipt {
+    let mut receipt = UploadReceipt {
         object_id,
-        root: published.root,
-        backend: published.backend,
+        root: staged.root.clone(),
+        backend: staged.backend,
         crypto_mode: CryptoMode::AesGcmSiv,
         sealed_format_version: SEALED_STREAM_VERSION,
         nonce,
@@ -765,7 +800,22 @@ pub async fn upload_object<R: AsyncRead + Unpin>(
         sealed_bytes,
         plan,
         json: out,
-    })
+    };
+
+    if let Some(lifecycle) = lifecycle {
+        lifecycle
+            .before_publish(&receipt)
+            .await
+            .map_err(|()| ObjectError::new(503, "upload journal unavailable before publish"))?;
+    }
+
+    let published = controller.ipfs_store().commit_staged(staged).await?;
+    let publish = t1.elapsed();
+    debug_assert_eq!(published.root, receipt.root);
+    if let Some(o) = receipt.json.as_object_mut() {
+        o.insert("publish_ms".into(), json!(ms(publish)));
+    }
+    Ok(receipt)
 }
 
 fn ms(d: Duration) -> f64 {

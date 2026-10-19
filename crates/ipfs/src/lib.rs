@@ -53,7 +53,7 @@ pub use manifest::{BlockLink, MANIFEST_SCHEMA, ObjectManifest};
 #[cfg(not(target_arch = "wasm32"))]
 pub use memory::MemoryBlockStore;
 #[cfg(not(target_arch = "wasm32"))]
-pub use object::{DEFAULT_MAX_OBJECT_SIZE, ObjectStore, PublishedObject};
+pub use object::{DEFAULT_MAX_OBJECT_SIZE, ObjectStore, PublishedObject, StagedObject};
 #[cfg(not(target_arch = "wasm32"))]
 pub use replica::{
     AuditReport, BlockStatus, ObjectHealth, RepairAction, RepairKind, RepairOutcome, RepairReport,

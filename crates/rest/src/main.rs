@@ -70,7 +70,7 @@ async fn admin(args: &[String]) -> Result<(), BoxError> {
 
 #[tokio::main]
 async fn main() -> Result<(), BoxError> {
-    let _ = todo_database::config::init_config_env();
+    todo_database::config::init_config_env()?;
     let args: Vec<String> = env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         None | Some("serve") => {}
