@@ -1,0 +1,4 @@
+interface:
+  display_name: "Parallel POLYVAL Rust Research"
+  short_description: "Rust workspace, AES-GCM-SIV, Zstd, benchmarks and secure objects"
+  default_prompt: "Audit, implement, dan uji perubahan di root workspace Rust parallel_aes_gcm_siv sesuai invariants RFC 8452 dan protokol eksperimen tesis."
