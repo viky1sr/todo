@@ -232,16 +232,17 @@ where
         Exec::Sequential => new_ctr()
             .try_apply_keystream(buf)
             .map_err(|_| CryptoError::DataTooLarge),
-        Exec::Parallel(segment_size) => buf
-            .par_chunks_mut(segment_size)
-            .enumerate()
-            .try_for_each(|(idx, segment)| {
-                let mut ctr = new_ctr();
-                ctr.try_seek((idx as u64) * (segment_size as u64))
-                    .map_err(|_| CryptoError::DataTooLarge)?;
-                ctr.try_apply_keystream(segment)
-                    .map_err(|_| CryptoError::DataTooLarge)
-            }),
+        Exec::Parallel(segment_size) => {
+            buf.par_chunks_mut(segment_size)
+                .enumerate()
+                .try_for_each(|(idx, segment)| {
+                    let mut ctr = new_ctr();
+                    ctr.try_seek((idx as u64) * (segment_size as u64))
+                        .map_err(|_| CryptoError::DataTooLarge)?;
+                    ctr.try_apply_keystream(segment)
+                        .map_err(|_| CryptoError::DataTooLarge)
+                })
+        }
     }
 }
 
@@ -275,6 +276,50 @@ where
     let mut ciphertext = plaintext.to_vec();
     apply_ctr(enc, &tag, &mut ciphertext, plan.ctr)?;
     Ok(AesGcmSivOutput { ciphertext, tag })
+}
+
+/// [`seal`] without the copy: `buffer` holds the plaintext on entry and the ciphertext on
+/// return (e.g. a memory-mapped file). Same two passes, same output.
+fn seal_in_place<C>(
+    enc: &C,
+    keys: &DerivedKeys,
+    nonce: &[u8; 12],
+    aad: &[u8],
+    buffer: &mut [u8],
+    plan: ExecutionPlan,
+) -> Result<[u8; 16], CryptoError>
+where
+    C: BlockCipherEncrypt + BlockSizeUser<BlockSize = U16> + Clone + Sync,
+{
+    let s = polyval_record(&keys.auth_key, aad, buffer, plan.polyval);
+    let tag = compute_tag(enc, s, nonce);
+    apply_ctr(enc, &tag, buffer, plan.ctr)?;
+    Ok(tag)
+}
+
+/// [`open`] without the copy: `buffer` holds the ciphertext on entry and the plaintext
+/// only if the tag verifies; on failure it is zeroed (never unauthenticated plaintext).
+fn open_in_place<C>(
+    enc: &C,
+    keys: &DerivedKeys,
+    nonce: &[u8; 12],
+    aad: &[u8],
+    buffer: &mut [u8],
+    tag: &[u8; 16],
+    plan: ExecutionPlan,
+) -> Result<(), CryptoError>
+where
+    C: BlockCipherEncrypt + BlockSizeUser<BlockSize = U16> + Clone + Sync,
+{
+    apply_ctr(enc, tag, buffer, plan.ctr)?;
+    let s = polyval_record(&keys.auth_key, aad, buffer, plan.polyval);
+    let expected = compute_tag(enc, s, nonce);
+    if expected.ct_eq(tag).to_bool() {
+        Ok(())
+    } else {
+        buffer.fill(0);
+        Err(CryptoError::AuthenticationFailed)
+    }
 }
 
 fn open<C>(
@@ -330,6 +375,114 @@ fn encrypt_impl(
             plan,
         ),
     }
+}
+
+fn encrypt_in_place_impl(
+    key: &[u8],
+    nonce: &[u8; 12],
+    aad: &[u8],
+    buffer: &mut [u8],
+    plan: ExecutionPlan,
+) -> Result<[u8; 16], CryptoError> {
+    check_lengths(aad, buffer)?;
+    let keys = derive_keys(key, nonce)?;
+    match &keys.enc_key {
+        EncKey::Aes128(k) => {
+            seal_in_place(&Aes128::new(&(*k).into()), &keys, nonce, aad, buffer, plan)
+        }
+        EncKey::Aes256(k) => {
+            seal_in_place(&Aes256::new(&(*k).into()), &keys, nonce, aad, buffer, plan)
+        }
+    }
+}
+
+/// In-place SS baseline: `buffer` (plaintext) is overwritten with the ciphertext; returns
+/// the tag. Output identical to [`aes_gcm_siv_encrypt_sequential`].
+pub fn aes_gcm_siv_encrypt_in_place_sequential(
+    key: &[u8],
+    nonce: &[u8; 12],
+    aad: &[u8],
+    buffer: &mut [u8],
+) -> Result<[u8; 16], CryptoError> {
+    encrypt_in_place_impl(key, nonce, aad, buffer, ExecutionPlan::SS)
+}
+
+/// In-place PS (parallel POLYVAL, sequential CTR). Output identical to
+/// [`aes_gcm_siv_encrypt_polyval_parallel`].
+pub fn aes_gcm_siv_encrypt_in_place_polyval_parallel(
+    key: &[u8],
+    nonce: &[u8; 12],
+    aad: &[u8],
+    buffer: &mut [u8],
+    segment_size: usize,
+) -> Result<[u8; 16], CryptoError> {
+    validate_segment_size(segment_size)?;
+    encrypt_in_place_impl(key, nonce, aad, buffer, ExecutionPlan::ps(segment_size))
+}
+
+fn decrypt_in_place_impl(
+    key: &[u8],
+    nonce: &[u8; 12],
+    aad: &[u8],
+    buffer: &mut [u8],
+    tag: &[u8; 16],
+    plan: ExecutionPlan,
+) -> Result<(), CryptoError> {
+    check_lengths(aad, buffer)?;
+    let keys = derive_keys(key, nonce)?;
+    match &keys.enc_key {
+        EncKey::Aes128(k) => open_in_place(
+            &Aes128::new(&(*k).into()),
+            &keys,
+            nonce,
+            aad,
+            buffer,
+            tag,
+            plan,
+        ),
+        EncKey::Aes256(k) => open_in_place(
+            &Aes256::new(&(*k).into()),
+            &keys,
+            nonce,
+            aad,
+            buffer,
+            tag,
+            plan,
+        ),
+    }
+}
+
+/// In-place SS decryption: on success `buffer` holds the plaintext; on tag mismatch it is
+/// zeroed and [`CryptoError::AuthenticationFailed`] is returned.
+pub fn aes_gcm_siv_decrypt_in_place_sequential(
+    key: &[u8],
+    nonce: &[u8; 12],
+    aad: &[u8],
+    buffer: &mut [u8],
+    tag: &[u8; 16],
+) -> Result<(), CryptoError> {
+    decrypt_in_place_impl(key, nonce, aad, buffer, tag, ExecutionPlan::SS)
+}
+
+/// In-place PS decryption (sequential CTR, parallel POLYVAL verification); same
+/// failure semantics as [`aes_gcm_siv_decrypt_in_place_sequential`].
+pub fn aes_gcm_siv_decrypt_in_place_polyval_parallel(
+    key: &[u8],
+    nonce: &[u8; 12],
+    aad: &[u8],
+    buffer: &mut [u8],
+    tag: &[u8; 16],
+    segment_size: usize,
+) -> Result<(), CryptoError> {
+    validate_segment_size(segment_size)?;
+    decrypt_in_place_impl(
+        key,
+        nonce,
+        aad,
+        buffer,
+        tag,
+        ExecutionPlan::ps(segment_size),
+    )
 }
 
 fn decrypt_impl(

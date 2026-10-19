@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourcePerFileMappings">
+    <file url="file://$PROJECT_DIR$/crates/database/migrations/mariadb/0001_users.sql" value="8ec37c45-d60c-4e7e-a51f-c1d829fbc060" />
+    <file url="file://$PROJECT_DIR$/crates/database/migrations/postgres/0001_objects.sql" value="e9c78a8d-adb6-4a81-a4b2-1464ea5ff6bd" />
+    <file url="file://$PROJECT_DIR$/crates/database/seeds/mariadb/0001_seed_users.sql" value="8ec37c45-d60c-4e7e-a51f-c1d829fbc060" />
+  </component>
+</project>

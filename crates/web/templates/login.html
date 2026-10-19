@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Masuk{% endblock %}
+{% block eyebrow %}Autentikasi Produksi · Argon2id · Sesi Redis{% endblock %}
+{% block heading %}Portal Masuk{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <form class="card form-card login-card" id="login-form" method="post" action="/api/v1/auth/login" autocomplete="off" novalidate{% match next %}{% when Some with (n) %} data-next="{{ n }}"{% when None %}{% endmatch %}>
+    <header class="card-head auth-card-head">
+      <div class="auth-card-title">
+        <span class="auth-eyebrow">Autentikasi Produksi · Argon2id</span>
+        <h3>Masuk ke Sistem</h3>
+      </div>
+      <span class="badge badge-auth" title="Sesi Terenkripsi HttpOnly SameSite=Strict">
+        <span class="dot" aria-hidden="true"></span>Redis Session
+      </span>
+    </header>
+    <p class="auth-subtitle muted small">Sesi terenkripsi HttpOnly · SameSite=Strict · Proteksi brute-force aktif</p>
+
+    <label class="field">
+      <span class="field-label">Nama pengguna</span>
+      <input type="text" name="username" id="username" autocomplete="off" spellcheck="false" maxlength="32" autofocus required placeholder="e.g. operator">
+    </label>
+    <label class="field">
+      <span class="field-label">Kata sandi</span>
+      <span class="input-group">
+        <input type="password" name="password" id="password" autocomplete="off" maxlength="128" required placeholder="••••••••••••">
+        <button type="button" class="btn btn-ghost btn-sm" data-toggle-secret aria-label="Tampilkan kata sandi">Lihat</button>
+      </span>
+      <span class="field-help muted small">Diverifikasi dengan Argon2id. Gagal berulang dibatasi per IP dan per nama pengguna (HTTP 429).</span>
+    </label>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary btn-block" data-run><span class="spinner" aria-hidden="true"></span>Masuk</button>
+    </div>
+    <div class="callout callout-err" role="alert" data-error hidden></div>
+
+    <div class="auth-card-foot muted small">
+      <span>Keamanan: Sesi terisolasi per-browser · Perlindungan CSRF otomatis</span>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,196 @@
+{% extends "base.html" %}{# Production: CID explorer #}
+{% block title %}Explore &amp; IPLD DAG Inspector{% endblock %}
+{% block eyebrow %}Eksplorasi Merkle DAG · Content addressing · CIDv1 · DAG-JSON{% endblock %}
+{% block heading %}Explore &amp; IPLD DAG{% endblock %}
+{% block content %}
+<section class="card glass backend-card">
+  <div class="backend-icon {% if shell.backend_live %}live{% else %}mock{% endif %}" aria-hidden="true">
+    <svg viewBox="0 0 24 24"><path d="M12 2 3 7v10l9 5 9-5V7zm0 2.3L18.6 8 12 11.7 5.4 8zM5 9.7l6 3.4v6.6l-6-3.3zm8 10v-6.6l6-3.4v6.7z"/></svg>
+  </div>
+  <div>
+    <span class="badge {% if shell.backend_live %}badge-live{% else %}badge-mock{% endif %}"><span class="dot" aria-hidden="true"></span>{{ shell.backend_label }}</span>
+    {% if shell.backend_live %}
+    <p>Eksplorasi Merkle DAG terdesentralisasi: terhubung ke node IPFS sungguhan. Hanya <strong>ciphertext</strong> yang meninggalkan proses ini; setiap blok diverifikasi terhadap CID-nya saat dibaca, lalu tag AEAD diperiksa sebelum dekompresi.</p>
+    {% else %}
+    <p><strong>Mode mock:</strong> blok disimpan di memori proses, bukan di jaringan IPFS. CID tetap dihitung sesuai spesifikasi, tetapi hasil di sini <em>bukan</em> bukti interoperabilitas atau performa jaringan. Jalankan dengan <code>TODO_IPFS_BACKEND=kubo</code> untuk node live.</p>
+    {% endif %}
+    <p class="muted small">Ukuran blok raw: {{ block_size }} · sealed stream → blok raw (sha2-256, CIDv1) + manifest DAG-JSON, root di-pin rekursif.</p>
+  </div>
+</section>
+
+<div class="grid two">
+  <form class="card form-card" id="publish-form" data-max-input="{{ max_input_bytes }}" novalidate>
+    <header class="card-head"><h3>Publikasikan</h3><span class="muted small">maks. {{ max_input }}</span></header>
+    <label class="field">
+      <span class="field-label">ID objek</span>
+      <input type="text" name="stream_id" value="demo-object" pattern="[A-Za-z0-9._\-]{1,128}" maxlength="128" required spellcheck="false">
+      <span class="field-help muted small">Huruf, angka, <code>.</code> <code>_</code> <code>-</code>; 1–128 karakter.</span>
+    </label>
+    <div class="tabs" role="tablist" aria-label="Sumber data">
+      <button type="button" role="tab" class="tab" aria-selected="true" aria-controls="pub-text" id="pub-tab-text">Teks</button>
+      <button type="button" role="tab" class="tab" aria-selected="false" aria-controls="pub-file" id="pub-tab-file" tabindex="-1">Berkas</button>
+    </div>
+    <div class="tab-panel" role="tabpanel" id="pub-text" aria-labelledby="pub-tab-text">
+      <label class="field">
+        <span class="field-label">Plaintext</span>
+        <textarea name="text" rows="5" spellcheck="false">Data ini dikompresi, dienkripsi sebagai satu pesan AES-GCM-SIV, lalu dipecah menjadi blok IPFS.</textarea>
+      </label>
+    </div>
+    <div class="tab-panel" role="tabpanel" id="pub-file" aria-labelledby="pub-tab-file" hidden>
+      <label class="dropzone" data-dropzone>
+        <input type="file" name="file" class="sr-only">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 15v4H5v-4H3v6h18v-6zM11 4.8V16h2V4.8l3.6 3.6L18 7l-6-6-6 6 1.4 1.4z"/></svg>
+        <span class="dz-title">Seret berkas atau <u>pilih berkas</u></span>
+        <span class="dz-meta muted small" data-file-meta>Belum ada berkas</span>
+      </label>
+    </div>
+    <fieldset class="keybox" data-keybox>
+      <legend>Kunci &amp; nonce</legend>
+      <div class="row">
+        <label class="field">
+          <span class="field-label">Panjang kunci</span>
+          <select name="key_bits" data-key-bits>
+            <option value="256">256 bit</option>
+            <option value="128">128 bit</option>
+          </select>
+        </label>
+        <div class="field">
+          <span class="field-label">Aksi</span>
+          <button type="button" class="btn btn-ghost" data-key-regen>Kunci &amp; nonce baru</button>
+        </div>
+      </div>
+      <label class="field">
+        <span class="field-label">Kunci (hex)</span>
+        <span class="input-group">
+          <input type="password" name="key_hex" autocomplete="off" spellcheck="false" data-key-input>
+          <button type="button" class="btn btn-ghost btn-sm" data-toggle-secret aria-label="Tampilkan kunci">Lihat</button>
+        </span>
+      </label>
+      <label class="field">
+        <span class="field-label">Nonce 96-bit (hex)</span>
+        <input type="text" name="nonce_hex" autocomplete="off" spellcheck="false" data-nonce-input>
+      </label>
+      <p class="hint warn-hint">Simpan kunci sendiri bila ingin mengambil kembali objek. Kunci tidak dikirim ke IPFS dan tidak disimpan di peramban.</p>
+    </fieldset>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary" data-run><span class="spinner" aria-hidden="true"></span>Publikasikan</button>
+    </div>
+    <div class="publish-result" data-result hidden>
+      <div class="cid-box">
+        <span class="field-label">Root CID (manifest)</span>
+        <code class="mono cid" data-k="root"></code>
+        <div class="actions">
+          <button type="button" class="btn btn-sm btn-ghost" data-copy="root">Salin CID</button>
+          <button type="button" class="btn btn-sm btn-ghost" data-use-fetch>Ambil kembali →</button>
+        </div>
+      </div>
+      <dl class="kv compact">
+        <div><dt>Backend</dt><dd data-k="backend"></dd></div>
+        <div><dt>Ukuran sealed</dt><dd data-k="total"></dd></div>
+        <div><dt>Jumlah blok</dt><dd data-k="count"></dd></div>
+      </dl>
+      <details class="advanced">
+        <summary>Blok dalam manifest</summary>
+        <ol class="block-list" data-blocks></ol>
+      </details>
+    </div>
+  </form>
+
+  <form class="card form-card" id="fetch-form" novalidate>
+    <header class="card-head"><h3>Ambil &amp; dekripsi</h3><span class="muted small">CID → verifikasi blok → tag → dekompresi</span></header>
+    <label class="field">
+      <span class="field-label">Root CID</span>
+      <input type="text" name="root_cid" placeholder="bagu…" spellcheck="false" autocomplete="off" required>
+    </label>
+    <label class="field">
+      <span class="field-label">Kunci (hex)</span>
+      <span class="input-group">
+        <input type="password" name="key_hex" autocomplete="off" spellcheck="false" required>
+        <button type="button" class="btn btn-ghost btn-sm" data-toggle-secret aria-label="Tampilkan kunci">Lihat</button>
+      </span>
+    </label>
+    <label class="field">
+      <span class="field-label">Nonce (hex)</span>
+      <input type="text" name="nonce_hex" autocomplete="off" spellcheck="false" required>
+    </label>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary" data-run><span class="spinner" aria-hidden="true"></span>Ambil</button>
+    </div>
+    <div class="fetch-result" data-result hidden>
+      <div class="callout callout-ok">
+        <strong>Tag AEAD valid.</strong> Plaintext dirilis setelah verifikasi dan dekompresi berhasil (<span data-k="size"></span>).
+      </div>
+      <label class="field">
+        <span class="field-label" data-k="preview-label">Pratinjau</span>
+        <pre class="preview mono" data-k="preview"></pre>
+      </label>
+    </div>
+    <div class="callout callout-err" data-error hidden></div>
+  </form>
+</div>
+
+<section class="card form-card wasm-card" id="wasm-verify-console">
+  <header class="card-head">
+    <div>
+      <h3>Verified-Fetch Klien (WASM + Service Worker)</h3>
+      <p class="muted small">Verifikasi kriptografi multihash CIDv1 &amp; dekripsi AES-256-GCM-SIV + Zstd langsung di browser/peramban tanpa perantara.</p>
+    </div>
+    <span class="badge badge-live" id="wasm-status-badge">WASM Siap</span>
+  </header>
+
+  <form id="wasm-fetch-form" novalidate>
+    <div class="row">
+      <label class="field">
+        <span class="field-label">Trustless IPFS Gateway</span>
+        <select name="gateway" id="wasm-gateway-select">
+          <option value="http://127.0.0.1:8080/ipfs/">Local Kubo Gateway (http://127.0.0.1:8080/ipfs/)</option>
+          <option value="https://trustless-gateway.link/ipfs/">Trustless Gateway Link (https://trustless-gateway.link/ipfs/)</option>
+          <option value="https://ipfs.io/ipfs/">IPFS.io Gateway (https://ipfs.io/ipfs/)</option>
+          <option value="https://dweb.link/ipfs/">dweb.link (https://dweb.link/ipfs/)</option>
+          <option value="https://cloudflare-ipfs.com/ipfs/">Cloudflare IPFS (https://cloudflare-ipfs.com/ipfs/)</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="field-label">Root CID</span>
+        <input type="text" name="wasm_root_cid" placeholder="bafyrei… atau bafkrei…" spellcheck="false" autocomplete="off" required>
+      </label>
+    </div>
+    <div class="row">
+      <label class="field">
+        <span class="field-label">Kunci AES-256 (hex · opsional untuk dekripsi)</span>
+        <span class="input-group">
+          <input type="password" name="wasm_key_hex" autocomplete="off" spellcheck="false" placeholder="64 karakter hex">
+          <button type="button" class="btn btn-ghost btn-sm" data-toggle-secret aria-label="Tampilkan kunci">Lihat</button>
+        </span>
+      </label>
+      <label class="field">
+        <span class="field-label">Nonce (hex · 24 karakter)</span>
+        <input type="text" name="wasm_nonce_hex" autocomplete="off" spellcheck="false" placeholder="24 karakter hex">
+      </label>
+    </div>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary" data-run><span class="spinner" aria-hidden="true"></span>Verified-Fetch &amp; Dekripsi via WASM</button>
+      <button type="button" class="btn btn-ghost" id="wasm-raw-btn">Ambil Raw Block Terverifikasi Saja</button>
+    </div>
+  </form>
+
+  <div class="wasm-logs-container" id="wasm-logs-box" hidden>
+    <span class="field-label">Log Integritas &amp; Verifikasi Kriptografi Klien</span>
+    <pre class="wasm-log mono" id="wasm-verification-logs"></pre>
+  </div>
+
+  <div class="fetch-result" id="wasm-result-box" hidden>
+    <div class="callout callout-ok" id="wasm-success-banner">
+      <strong>Verifikasi Kriptografi Klien Berhasil!</strong> Multihash dan tag terotentikasi penuh di peramban.
+    </div>
+    <div class="actions">
+      <a href="#" class="btn btn-primary btn-sm" id="wasm-download-link" download="verified-object.bin">Unduh Plaintext Terverifikasi</a>
+    </div>
+    <label class="field">
+      <span class="field-label">Pratinjau Plaintext Browser</span>
+      <pre class="preview mono" id="wasm-preview-text"></pre>
+    </label>
+  </div>
+  <div class="callout callout-err" id="wasm-error-callout" role="alert" hidden></div>
+</section>
+{% endblock %}

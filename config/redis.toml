@@ -1,0 +1,8 @@
+# todo configuration: Redis sessions (Layer 2). Needs mariadb.toml.
+# No password in the URL (rejected); use password_file with requirepass/ACL.
+
+url = "redis://127.0.0.1:6379/0"                    # TODO_REDIS_URL
+
+[session]
+idle_secs = 1800                                    # TODO_SESSION_IDLE_SECS (60..=2592000)
+absolute_secs = 43200                               # TODO_SESSION_ABSOLUTE_SECS (>= idle)

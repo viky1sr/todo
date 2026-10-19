@@ -47,3 +47,12 @@ source -> single Zstd Encoder -> bounded compressed buffers -> carry-16B + POLYV
 - Counterintuitive results (e.g., frame penalty for repetitive data) belong in thesis, not as bugs to hide.
 
 Official technical specs: RFC 8878 (Zstandard), https://www.rfc-editor.org/rfc/rfc8878 ; Zstd frame format https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md .
+
+## Pure-Rust codec `todo_zstd::core` (RFC 8878)
+
+- `crates/zstd/src/core/` contains `bitstream`, `xxhash`, `fse`, `huffman`, `lz77`, `block` and `frame`. They provide `core::compress(data, level)`, `core::decompress(data)` and `core::decompress_with_limit(data, max)`.
+- `ZstdSegmenter` (`compressor.rs`) uses `core` for independent segments. Each `ZSTX` segment is `[17 B ZSTX header][standard 0xFD2FB528 frame]`. Decoding is limited to the segment's `uncompressed_size`.
+- The `core` output is valid Zstandard and is deterministic for each `(data, level)`. It is **not byte-identical to libzstd**. Its compressed sizes and the POLYVAL segment counts derived from them can differ from earlier libzstd runs, so report the codec with every measurement.
+- `pipeline.rs` single-frame modes, `crates/rest` and the root binary still use the `zstd` crate (libzstd from upstream C). `vendor/zstd` and `build.rs` remain the C reference and differential oracle.
+- The decoder rejects dictionaries. The encoder does not use dictionaries, long-distance matching or multithreading.
+- Differential oracle: `crates/zstd/tests/core_interop.rs` (libzstd ↔ core, official CLI fixtures in `tests/fixtures/`, CLI round-trip, mutation/no-panic).

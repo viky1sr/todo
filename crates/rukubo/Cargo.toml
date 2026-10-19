@@ -1,0 +1,9 @@
+[package]
+name = "rukubo"
+version = "0.1.0"
+edition = "2024"
+description = "Rust supervisor for a private local Kubo daemon"
+
+[dependencies]
+todo-ipfs = { workspace = true }
+toml = { workspace = true }

@@ -1,0 +1,6 @@
+# todo configuration: PostgreSQL object metadata (Layer 4). Needs MariaDB + Redis.
+# No password in the URL (rejected); use password_file. sqlx is built without TLS:
+# keep PostgreSQL on a private network/loopback.
+
+url = "postgres://visry@localhost:5432/todo"        # TODO_POSTGRES_URL
+password_file = "secrets/postgres_password"         # TODO_POSTGRES_PASSWORD_FILE

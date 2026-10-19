@@ -1,0 +1,93 @@
+{% extends "base.html" %}{# Production: node settings #}
+{% block title %}Pengaturan &amp; Konfigurasi{% endblock %}
+{% block eyebrow %}Konfigurasi Simpulan · Segmentasi Kripto · Kredensial &amp; Tema{% endblock %}
+{% block heading %}Pengaturan Sistem{% endblock %}
+{% block content %}
+<section class="card glass hero">
+  <div>
+    <h2>Pengaturan &amp; Kebijakan Operasional</h2>
+    <p class="muted">
+      Kelola konfigurasi node IPFS, kebijakan segmentasi kripto paralel Rayon, otentikasi sesi, token API, dan preferensi tema.
+    </p>
+  </div>
+</section>
+
+<div class="grid two">
+  <section class="card form-card">
+    <header class="card-head">
+      <h3>Kebijakan Kripto &amp; Segmentasi</h3>
+      <span class="badge badge-live">AES-256-GCM-SIV</span>
+    </header>
+    <dl class="kv">
+      <div><dt>Ukuran Segmen Default</dt><dd><code>{{ polyval_default_segment }}</code></dd></div>
+      <div><dt>Batas Minimum Paralel</dt><dd><code>{{ min_parallel }}</code></dd></div>
+      <div><dt>Rentang Segmentasi Adaptif</dt><dd><code>{{ adaptive_segment_range }}</code></dd></div>
+      <div><dt>Batas Dekompresi Zstd Maks</dt><dd><code>{{ max_decompressed }}</code></dd></div>
+      <div><dt>Thread Pool Rayon Aktif</dt><dd><code>{{ rayon_threads }}</code> (dari {{ logical_cpus }} CPU logis)</dd></div>
+    </dl>
+  </section>
+
+  <section class="card form-card">
+    <header class="card-head">
+      <h3>Preferensi Tampilan &amp; Sesi</h3>
+    </header>
+    <div class="field">
+      <span class="field-label">Tema Warna</span>
+      <p class="muted small">Pilih tema terang atau gelap sesuai kenyamanan visual Anda.</p>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" id="settings-theme-toggle">
+          <svg class="i-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0-5h0v3m0 14v3M4.2 4.2l2.1 2.1m11.4 11.4 2.1 2.1M2 12h3m14 0h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+          Ganti Tema Terang / Gelap
+        </button>
+      </div>
+    </div>
+    <div class="field">
+      <span class="field-label">Status Service Worker</span>
+      <p class="muted small">Service worker menangani verified-fetch in-browser dan validasi tag fail-closed.</p>
+    </div>
+  </section>
+</div>
+
+{% if accounts_enabled %}
+<section class="card form-card" id="account-profile">
+  <header class="card-head">
+    <h3>Akun &amp; Sesi Pengguna</h3>
+    {% match username %}
+    {% when Some with (name) %}
+      <span class="badge badge-live">{{ role }}</span>
+    {% when None %}
+      <span class="badge badge-mock">Belum Masuk</span>
+    {% endmatch %}
+  </header>
+  {% match username %}
+  {% when Some with (name) %}
+    <p class="muted small">Autentikasi Argon2id aktif dengan sesi Redis terenkripsi. Data PII dienkripsi dengan AES-GCM-SIV.</p>
+    <dl class="kv" data-profile>
+      <div><dt>Pengguna</dt><dd><code>{{ name }}</code></dd></div>
+      <div><dt>Email</dt><dd data-k="email">…</dd></div>
+      <div><dt>NIK</dt><dd data-k="national_id">…</dd></div>
+      <div><dt>Akun dibuat</dt><dd data-k="created">…</dd></div>
+      <div><dt>Sesi dimulai</dt><dd data-k="session">…</dd></div>
+    </dl>
+    <div class="actions">
+      <button type="button" class="btn btn-ghost" data-logout><span class="spinner" aria-hidden="true"></span>Keluar dari Sesi</button>
+    </div>
+    <div class="callout callout-err" role="alert" data-error hidden></div>
+  {% when None %}
+    <p class="muted">Anda belum masuk. Masuk untuk mengelola data akun dan token API.</p>
+    <div class="actions">
+      <a href="/login?next=/settings" class="btn btn-primary">Masuk ke Akun</a>
+    </div>
+  {% endmatch %}
+</section>
+{% else %}
+<section class="card glass backend-card">
+  <div class="backend-icon" aria-hidden="true">
+    <svg viewBox="0 0 24 24"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg>
+  </div>
+  <div>
+    <p><strong>Modul Akun Tidak Aktif:</strong> Server berjalan dalam mode standalone tanpa database MariaDB/Redis.</p>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

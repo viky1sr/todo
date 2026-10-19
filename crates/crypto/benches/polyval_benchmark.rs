@@ -47,13 +47,7 @@ fn bench_polyval_size(c: &mut Criterion) {
             },
         );
         group.bench_with_input(BenchmarkId::new("parallel_tree", size), &data, |b, d| {
-            b.iter(|| {
-                polyval_parallel(
-                    black_box(&h),
-                    black_box(d),
-                    DEFAULT_POLYVAL_SEGMENT_SIZE,
-                )
-            });
+            b.iter(|| polyval_parallel(black_box(&h), black_box(d), DEFAULT_POLYVAL_SEGMENT_SIZE));
         });
     }
     group.finish();
@@ -111,17 +105,21 @@ fn bench_aes_gcm_siv(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("SS", size), &pt, |b, pt| {
             b.iter(|| aes_gcm_siv_encrypt_sequential(&key, &nonce, aad, black_box(pt)));
         });
-        group.bench_with_input(BenchmarkId::new("PS_polyval_parallel", size), &pt, |b, pt| {
-            b.iter(|| {
-                aes_gcm_siv_encrypt_polyval_parallel(
-                    &key,
-                    &nonce,
-                    aad,
-                    black_box(pt),
-                    DEFAULT_POLYVAL_SEGMENT_SIZE,
-                )
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::new("PS_polyval_parallel", size),
+            &pt,
+            |b, pt| {
+                b.iter(|| {
+                    aes_gcm_siv_encrypt_polyval_parallel(
+                        &key,
+                        &nonce,
+                        aad,
+                        black_box(pt),
+                        DEFAULT_POLYVAL_SEGMENT_SIZE,
+                    )
+                });
+            },
+        );
         group.bench_with_input(BenchmarkId::new("SP_ctr_parallel", size), &pt, |b, pt| {
             b.iter(|| {
                 aes_gcm_siv_encrypt_ctr_parallel(

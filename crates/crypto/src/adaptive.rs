@@ -18,8 +18,11 @@
 //! per machine with the `crypto-only` size sweep of `thesis_bench`.
 
 use crate::aes_gcm_siv_par::{
-    AesGcmSivOutput, aes_gcm_siv_decrypt_polyval_parallel, aes_gcm_siv_decrypt_sequential,
-    aes_gcm_siv_encrypt_polyval_parallel, aes_gcm_siv_encrypt_sequential,
+    AesGcmSivOutput, aes_gcm_siv_decrypt_in_place_polyval_parallel,
+    aes_gcm_siv_decrypt_in_place_sequential, aes_gcm_siv_decrypt_polyval_parallel,
+    aes_gcm_siv_decrypt_sequential, aes_gcm_siv_encrypt_in_place_polyval_parallel,
+    aes_gcm_siv_encrypt_in_place_sequential, aes_gcm_siv_encrypt_polyval_parallel,
+    aes_gcm_siv_encrypt_sequential,
 };
 use crate::error::CryptoError;
 use crate::polyval_par::{POLYVAL_BLOCK_SIZE, polyval_parallel, segment_count};
@@ -80,6 +83,8 @@ pub enum FallbackReason {
     SingleSegment,
     /// Sequential execution was requested explicitly.
     Forced,
+    /// The selected [`crate::CryptoMode`] has no POLYVAL, so segmentation does not apply.
+    NotApplicable,
 }
 
 /// Execution plan for one AES-GCM-SIV message.
@@ -122,6 +127,9 @@ impl SegmentPlan {
             Self::Sequential {
                 reason: FallbackReason::Forced,
             } => "sequential",
+            Self::Sequential {
+                reason: FallbackReason::NotApplicable,
+            } => "not-applicable",
             Self::Sequential { .. } => "sequential-fallback",
             Self::Parallel { segments, .. } if *segments <= 1 => "single-segment",
             Self::Parallel { .. } => "parallel",
@@ -185,6 +193,53 @@ pub fn aes_gcm_siv_encrypt_planned(
         }
         SegmentPlan::Parallel { segment_bytes, .. } => {
             aes_gcm_siv_encrypt_polyval_parallel(key, nonce, aad, plaintext, segment_bytes)
+        }
+    }
+}
+
+/// In-place [`aes_gcm_siv_encrypt_planned`]: `buffer` (plaintext, e.g. a memory-mapped
+/// file) is overwritten with the ciphertext and the tag is returned. Output is identical
+/// for every plan and to the copying variant.
+pub fn aes_gcm_siv_encrypt_in_place_planned(
+    key: &[u8],
+    nonce: &[u8; 12],
+    aad: &[u8],
+    buffer: &mut [u8],
+    plan: &SegmentPlan,
+) -> Result<[u8; 16], CryptoError> {
+    match *plan {
+        SegmentPlan::Sequential { .. } => {
+            aes_gcm_siv_encrypt_in_place_sequential(key, nonce, aad, buffer)
+        }
+        SegmentPlan::Parallel { segment_bytes, .. } => {
+            aes_gcm_siv_encrypt_in_place_polyval_parallel(key, nonce, aad, buffer, segment_bytes)
+        }
+    }
+}
+
+/// In-place [`aes_gcm_siv_decrypt_planned`]: on success `buffer` holds the plaintext; on
+/// tag mismatch it is zeroed and [`CryptoError::AuthenticationFailed`] is returned.
+pub fn aes_gcm_siv_decrypt_in_place_planned(
+    key: &[u8],
+    nonce: &[u8; 12],
+    aad: &[u8],
+    buffer: &mut [u8],
+    tag: &[u8; 16],
+    plan: &SegmentPlan,
+) -> Result<(), CryptoError> {
+    match *plan {
+        SegmentPlan::Sequential { .. } => {
+            aes_gcm_siv_decrypt_in_place_sequential(key, nonce, aad, buffer, tag)
+        }
+        SegmentPlan::Parallel { segment_bytes, .. } => {
+            aes_gcm_siv_decrypt_in_place_polyval_parallel(
+                key,
+                nonce,
+                aad,
+                buffer,
+                tag,
+                segment_bytes,
+            )
         }
     }
 }

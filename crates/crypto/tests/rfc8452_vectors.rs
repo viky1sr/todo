@@ -6,9 +6,8 @@ use common::rfc8452_vectors::RFC8452_VECTORS;
 use todo_crypto::{
     CryptoError, aes_gcm_siv_decrypt_ctr_parallel, aes_gcm_siv_decrypt_parallel,
     aes_gcm_siv_decrypt_polyval_parallel, aes_gcm_siv_decrypt_sequential,
-    aes_gcm_siv_decrypt_upstream, aes_gcm_siv_encrypt_ctr_parallel,
-    aes_gcm_siv_encrypt_parallel, aes_gcm_siv_encrypt_polyval_parallel,
-    aes_gcm_siv_encrypt_sequential,
+    aes_gcm_siv_decrypt_upstream, aes_gcm_siv_encrypt_ctr_parallel, aes_gcm_siv_encrypt_parallel,
+    aes_gcm_siv_encrypt_polyval_parallel, aes_gcm_siv_encrypt_sequential,
     aes_gcm_siv_encrypt_upstream, build_polyval_record, derive_keys, polyval_parallel,
     polyval_sequential,
 };
@@ -59,13 +58,7 @@ fn encryption_matches_rfc() {
         for seg in SEGMENT_SIZES {
             outputs.push((
                 "PS_polyval_parallel",
-                aes_gcm_siv_encrypt_polyval_parallel(
-                    v.key,
-                    &v.nonce,
-                    v.aad,
-                    v.plaintext,
-                    seg,
-                ),
+                aes_gcm_siv_encrypt_polyval_parallel(v.key, &v.nonce, v.aad, v.plaintext, seg),
             ));
             outputs.push((
                 "SP_ctr_parallel",
@@ -101,15 +94,8 @@ fn decryption_matches_rfc_and_rejects_tampering() {
         );
         for seg in SEGMENT_SIZES {
             assert_eq!(
-                aes_gcm_siv_decrypt_polyval_parallel(
-                    v.key,
-                    &v.nonce,
-                    v.aad,
-                    ct,
-                    &tag,
-                    seg,
-                )
-                .unwrap(),
+                aes_gcm_siv_decrypt_polyval_parallel(v.key, &v.nonce, v.aad, ct, &tag, seg,)
+                    .unwrap(),
                 v.plaintext
             );
             assert_eq!(
@@ -132,14 +118,7 @@ fn decryption_matches_rfc_and_rejects_tampering() {
             let mut bad_ct = ct.to_vec();
             bad_ct[ct.len() - 1] ^= 0x80;
             assert_eq!(
-                aes_gcm_siv_decrypt_polyval_parallel(
-                    v.key,
-                    &v.nonce,
-                    v.aad,
-                    &bad_ct,
-                    &tag,
-                    16,
-                ),
+                aes_gcm_siv_decrypt_polyval_parallel(v.key, &v.nonce, v.aad, &bad_ct, &tag, 16,),
                 Err(CryptoError::AuthenticationFailed)
             );
         }

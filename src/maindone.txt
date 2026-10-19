@@ -1,0 +1,293 @@
+use std::fs::File;
+use std::os::unix::fs::FileExt;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::thread;
+use std::time::Instant;
+
+const SLICE: usize = 256 * 1024; // 256 KB per slice
+
+#[inline(always)]
+fn hash_chunk(chunk: &[u8]) -> u64 {
+    const K: u64 = 0x9E3779B97F4A7C15;
+    let mut acc = [0x243F6A8885A308D3u64; 4];
+    let mut it = chunk.chunks_exact(32);
+
+    for c in it.by_ref() {
+        for l in 0..4 {
+            let w = u64::from_le_bytes(c[l * 8..l * 8 + 8].try_into().unwrap());
+            acc[l] = (acc[l].rotate_left(23) ^ w).wrapping_mul(K);
+        }
+    }
+
+    let mut h = acc[0] ^ acc[1].rotate_left(16) ^ acc[2].rotate_left(32) ^ acc[3].rotate_left(48);
+    for &b in it.remainder() {
+        h = (h ^ b as u64).wrapping_mul(0x100000001b3);
+    }
+    h
+}
+
+fn run_stream<S: Send>(
+    file: &File,
+    size: usize,
+    threads: usize,
+    init: impl Fn() -> S + Sync,
+    work: impl Fn(&mut S, &mut [u8]) + Sync,
+) -> Vec<S> {
+    let n = size.div_ceil(SLICE);
+    let next = AtomicUsize::new(0);
+
+    thread::scope(|s| {
+        let handles: Vec<_> = (0..threads)
+            .map(|_| {
+                s.spawn(|| {
+                    let mut st = init();
+                    let mut buf = vec![0u8; SLICE];
+                    loop {
+                        let i = next.fetch_add(1, Ordering::Relaxed);
+                        if i >= n {
+                            break;
+                        }
+                        let off = i * SLICE;
+                        let b = &mut buf[..SLICE.min(size - off)];
+                        file.read_exact_at(b, off as u64).unwrap();
+                        work(&mut st, b);
+                    }
+                    st
+                })
+            })
+            .collect();
+        handles.into_iter().map(|h| h.join().unwrap()).collect()
+    })
+}
+
+/// Pass 1 Scan: Flat L1 Array Lookup (16-Way ILP, Tanpa Bit-Shift Hazard)
+#[inline(always)]
+fn scan_presence_l1(chunk: &[u8], local_seen: &mut [u8; 256]) {
+    let chunks_16 = chunk.chunks_exact(16);
+    let remainder = chunks_16.remainder();
+
+    for c in chunks_16 {
+        local_seen[c[0] as usize] = 1;
+        local_seen[c[1] as usize] = 1;
+        local_seen[c[2] as usize] = 1;
+        local_seen[c[3] as usize] = 1;
+        local_seen[c[4] as usize] = 1;
+        local_seen[c[5] as usize] = 1;
+        local_seen[c[6] as usize] = 1;
+        local_seen[c[7] as usize] = 1;
+        local_seen[c[8] as usize] = 1;
+        local_seen[c[9] as usize] = 1;
+        local_seen[c[10] as usize] = 1;
+        local_seen[c[11] as usize] = 1;
+        local_seen[c[12] as usize] = 1;
+        local_seen[c[13] as usize] = 1;
+        local_seen[c[14] as usize] = 1;
+        local_seen[c[15] as usize] = 1;
+    }
+
+    for &b in remainder {
+        local_seen[b as usize] = 1;
+    }
+}
+
+/// Direct Slice Writer 7-Bit SWAR Encoding (Zero-Alloc, Zero-Push)
+#[inline(always)]
+fn pack_7bit_swar(src: &[u8], dst: &mut [u8], pointer_map: &[u8; 256]) -> usize {
+    let chunks_8 = src.chunks_exact(8);
+    let remainder = chunks_8.remainder();
+    let mut out_idx = 0;
+
+    for c in chunks_8 {
+        let s0 = pointer_map[c[0] as usize] as u64;
+        let s1 = pointer_map[c[1] as usize] as u64;
+        let s2 = pointer_map[c[2] as usize] as u64;
+        let s3 = pointer_map[c[3] as usize] as u64;
+        let s4 = pointer_map[c[4] as usize] as u64;
+        let s5 = pointer_map[c[5] as usize] as u64;
+        let s6 = pointer_map[c[6] as usize] as u64;
+        let s7 = pointer_map[c[7] as usize] as u64;
+
+        let w: u64 = s0
+            | (s1 << 7)
+            | (s2 << 14)
+            | (s3 << 21)
+            | (s4 << 28)
+            | (s5 << 35)
+            | (s6 << 42)
+            | (s7 << 49);
+
+        let bytes = w.to_le_bytes();
+        dst[out_idx..out_idx + 7].copy_from_slice(&bytes[..7]);
+        out_idx += 7;
+    }
+
+    if !remainder.is_empty() {
+        let mut w: u64 = 0;
+        for (i, &b) in remainder.iter().enumerate() {
+            let s = pointer_map[b as usize] as u64;
+            w |= s << (i * 7);
+        }
+        let out_bytes = (remainder.len() * 7 + 7) / 8;
+        let bytes = w.to_le_bytes();
+        dst[out_idx..out_idx + out_bytes].copy_from_slice(&bytes[..out_bytes]);
+        out_idx += out_bytes;
+    }
+
+    out_idx
+}
+
+/// Direct Slice Writer 7-Bit SWAR Decoding (Zero-Alloc, Zero-Push)
+#[inline(always)]
+fn unpack_7bit_swar(packed: &[u8], original_len: usize, dst: &mut [u8], decode_map: &[u8; 256]) {
+    let chunks_7 = packed.chunks_exact(7);
+    let remainder = chunks_7.remainder();
+    let mut out_idx = 0;
+
+    for c in chunks_7 {
+        let mut raw = [0u8; 8];
+        raw[..7].copy_from_slice(c);
+        let w = u64::from_le_bytes(raw);
+
+        dst[out_idx]     = decode_map[(w & 0x7F) as usize];
+        dst[out_idx + 1] = decode_map[((w >> 7) & 0x7F) as usize];
+        dst[out_idx + 2] = decode_map[((w >> 14) & 0x7F) as usize];
+        dst[out_idx + 3] = decode_map[((w >> 21) & 0x7F) as usize];
+        dst[out_idx + 4] = decode_map[((w >> 28) & 0x7F) as usize];
+        dst[out_idx + 5] = decode_map[((w >> 35) & 0x7F) as usize];
+        dst[out_idx + 6] = decode_map[((w >> 42) & 0x7F) as usize];
+        dst[out_idx + 7] = decode_map[((w >> 49) & 0x7F) as usize];
+        out_idx += 8;
+    }
+
+    if !remainder.is_empty() {
+        let mut raw = [0u8; 8];
+        raw[..remainder.len()].copy_from_slice(remainder);
+        let w = u64::from_le_bytes(raw);
+
+        let rem_symbols = original_len - out_idx;
+        for i in 0..rem_symbols {
+            let idx = ((w >> (i * 7)) & 0x7F) as usize;
+            dst[out_idx] = decode_map[idx];
+            out_idx += 1;
+        }
+    }
+}
+
+fn main() -> std::io::Result<()> {
+    let total_start = Instant::now();
+
+    println!("=== ZERO-ALLOCATION OPTIMIZED SWAR ENGINE ===");
+
+    let file = File::open("todo.csv")?;
+    let size = file.metadata()?.len() as usize;
+    let threads = thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
+    let total_slices = size.div_ceil(SLICE);
+
+    // PASS 1: Presence Scan via L1 Flat Array
+    let pass1_start = Instant::now();
+    let presence_parts = run_stream(&file, size, threads, || [0u8; 256], |seen, b| {
+        scan_presence_l1(b, seen);
+    });
+
+    let mut global_seen = [0u8; 256];
+    for p in &presence_parts {
+        for k in 0..256 {
+            global_seen[k] |= p[k];
+        }
+    }
+
+    let box_dec_vec: Vec<u8> = (0..=255u8)
+        .filter(|&byte| global_seen[byte as usize] != 0)
+        .collect();
+    
+    let mut pointer_map = [0u8; 256];
+    let mut decode_map = [0u8; 256];
+    for (idx, &byte) in box_dec_vec.iter().enumerate() {
+        pointer_map[byte as usize] = idx as u8;
+        decode_map[idx] = byte;
+    }
+    let pass1_duration = pass1_start.elapsed();
+
+    // PASS 2: Zero-Allocation Compress -> Decompress -> Verify
+    let pass2_start = Instant::now();
+    let p_map_ref = &pointer_map;
+    let d_map_ref = &decode_map;
+
+    // Alokasi scratch buffer reusable PER-THREAD (satu kali alokasi di init)
+    let stats = run_stream(
+        &file,
+        size,
+        threads,
+        || {
+            (
+                0usize,
+                0usize,
+                0usize,
+                vec![0u8; SLICE], // Scratch buffer untuk packed
+                vec![0u8; SLICE], // Scratch buffer untuk decompressed
+            )
+        },
+        |(proc_bytes, packed_bytes, bad, packed_buf, decomp_buf), b| {
+            let orig_len = b.len();
+            *proc_bytes += orig_len;
+
+            let hash_before = hash_chunk(b);
+
+            // 1. Zero-Alloc Pack
+            let packed_len = pack_7bit_swar(b, &mut packed_buf[..], p_map_ref);
+            *packed_bytes += packed_len;
+
+            // 2. Zero-Alloc Unpack
+            unpack_7bit_swar(&packed_buf[..packed_len], orig_len, &mut decomp_buf[..orig_len], d_map_ref);
+
+            // 3. Checksum Precision Check
+            let hash_after = hash_chunk(&decomp_buf[..orig_len]);
+            if hash_before != hash_after {
+                *bad += 1;
+            }
+        },
+    );
+
+    let mut total_processed_bytes = 0usize;
+    let mut total_encoded_bytes = 0usize;
+    let mut total_corrupted_slices = 0usize;
+
+    for (p_bytes, enc_bytes, bad, _, _) in stats {
+        total_processed_bytes += p_bytes;
+        total_encoded_bytes += enc_bytes;
+        total_corrupted_slices += bad;
+    }
+
+    let pass2_duration = pass2_start.elapsed();
+    let total_duration = total_start.elapsed();
+
+    let bytes_saved = size - total_encoded_bytes;
+    let compression_ratio = (total_encoded_bytes as f64 / size as f64) * 100.0;
+
+    println!("\n=================== REAL COMPRESSION & SIZE REPORT ===================");
+    println!("File Size (Original)   : {} bytes ({:.2} MB)", size, size as f64 / (1024.0 * 1024.0));
+    println!("Read Stream Processed  : {} bytes (Total Slices: {})", total_processed_bytes, total_slices);
+    println!("Encoded Stream Size    : {} bytes ({:.2} MB)", total_encoded_bytes, total_encoded_bytes as f64 / (1024.0 * 1024.0));
+    println!("Physical Size Reduction: {} bytes ({:.2} MB saved)", bytes_saved, bytes_saved as f64 / (1024.0 * 1024.0));
+    println!("Compression Ratio (R)  : {:.2}% dari ukuran asli", compression_ratio);
+    println!("-----------------------------------------------------------");
+    println!("Bit Corrupted Slices   : {} / {}", total_corrupted_slices, total_slices);
+
+    let is_bit_exact = total_corrupted_slices == 0 && total_processed_bytes == size && total_encoded_bytes < size;
+
+    if is_bit_exact {
+        println!("BIT-EXACT STATUS       : [ OK ] 100% LOSSLESS COMPRESSION MATCH (0 Bit Flips)");
+    } else {
+        println!("BIT-EXACT STATUS       : [ FAIL ] BIT MISMATCH OR COMPRESSION ERROR DETECTED!");
+    }
+    println!("===========================================================");
+
+    println!("\n--- TIMING SUMMARY ---");
+    println!("1. Pass 1 (Presence Scan)          : {:?}", pass1_duration);
+    println!("2. Pass 2 (Compress+Decompress)    : {:?}", pass2_duration);
+    println!("Total Execution Time               : {:?}", total_duration);
+
+    assert!(is_bit_exact, "FATAL ERROR: Validation failed!");
+
+    Ok(())
+}

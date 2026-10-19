@@ -67,3 +67,16 @@ Events are append-only, with actor identity, object generation, evidence hash, e
 - An `IPFS roundtrip: OK` for an in-memory map does not validate interoperability or correct CID. In prior log, `bafybeigf7b969b0912a860600000073` is not valid Base32 CIDv1: it includes `0`, `1`, `8`, `9`.
 
 See CID specification: https://specs.ipfs.tech/cid/ ; Content-addressing docs: https://docs.ipfs.tech/concepts/content-addressing/ .
+
+## Implemented in `crates/ipfs` (`todo-ipfs`)
+
+- `cid`: strict CIDv0/CIDv1 + multihash + multicodec (base32 `b`/`B`, base58btc `z`/`Qm`), canonical varints, sha2-256 verification. Legacy mock strings such as `bafybeigf7b969b0912a860600000073` are rejected.
+- `block`/`BlockStore`: backends are untrusted; every `get_block` re-hashes bytes against the CID; blocks ≤ 1 MiB, default chunk 256 KiB.
+- `manifest`: canonical DAG-JSON object manifest (`todo-ipfs/object-manifest/v1`); its CID is the object root and trust anchor. Kubo traverses its links (`refs -r`, recursive pin).
+- `object::ObjectStore`: chunk → raw blocks → manifest → recursive pin; reads verify every block, sizes and `max_object_size`.
+- Backends: `KuboRpcClient` (live, Kubo RPC `/api/v0/*`, local-only reads by default), `TrustlessGateway` (live, read-only, `?format=raw`), `MemoryBlockStore` (**MOCK**, real CIDs, fault injection).
+- `replica::ReplicaSet`: audit (`healthy/missing/corrupted/unreachable`) and byte-identical repair from CID-verified copies with read-back verification; never reports recovery without a verified source.
+- REST: `TODO_IPFS_BACKEND=mock|kubo|gateway`, `TODO_IPFS_URL`; `POST /api/v1/ipfs/publish` returns `root_cid` and `backend`; `POST /api/v1/ipfs/fetch` verifies CIDs, then the AEAD tag.
+- Live tests: `TODO_IPFS_KUBO_API=… [TODO_IPFS_GATEWAY=…] cargo test -p todo-ipfs --test live_kubo -- --ignored --test-threads=1` (use a disposable node).
+
+Not implemented: an IPFS node itself (libp2p, Bitswap, DHT), UnixFS/dag-pb files, IPNS, pinning-service API, signed manifests, and node membership/authorization.

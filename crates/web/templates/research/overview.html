@@ -1,0 +1,23 @@
+{% extends "base.html" %}{# Research: overview #}
+{% block title %}Research Workspace{% endblock %}
+{% block eyebrow %}Riset · Bukan operasi node produksi{% endblock %}
+{% block heading %}Research Workspace{% endblock %}
+{% block content %}
+<section class="card glass hero">
+  <div>
+    <span class="chip">Lingkungan eksperimen terpisah</span>
+    <h2>Validasi kriptografi dan pengukuran</h2>
+    <p class="lead">Halaman ini untuk eksperimen pipeline, ekuivalensi POLYVAL, dan benchmark. Tidak digunakan untuk operasi objek produksi atau kontrol node Kubo.</p>
+  </div>
+</section>
+<section class="grid stats three">
+  <article class="card stat"><span class="stat-label">Rayon workers</span><span class="stat-value">{{ rayon_threads }}</span><span class="stat-hint">{{ logical_cpus }} CPU logis</span></article>
+  <article class="card stat"><span class="stat-label">Batas input eksperimen</span><span class="stat-value sm">{{ max_input }}</span><span class="stat-hint">dibatasi server</span></article>
+  <article class="card stat"><span class="stat-label">Status hasil</span><span class="stat-value sm">Tidak otomatis produksi</span><span class="stat-hint">validasi dan benchmark terpisah</span></article>
+</section>
+<section class="grid three">
+  <article class="card form-card"><h3>Pipeline</h3><p class="muted small">Uji Zstd, AES-GCM-SIV, segmentasi, dan penolakan tamper.</p><div class="actions"><a class="btn btn-primary btn-sm" href="/pipeline">Buka pipeline</a></div></article>
+  <article class="card form-card"><h3>Ekuivalensi</h3><p class="muted small">Bandingkan komposisi POLYVAL paralel dengan jalur sekuensial.</p><div class="actions"><a class="btn btn-primary btn-sm" href="/equivalence">Buka ekuivalensi</a></div></article>
+  <article class="card form-card"><h3>Benchmark</h3><p class="muted small">Ukur crypto-only secara terpisah dari throughput penyimpanan.</p><div class="actions"><a class="btn btn-primary btn-sm" href="/benchmark">Buka benchmark</a></div></article>
+</section>
+{% endblock %}

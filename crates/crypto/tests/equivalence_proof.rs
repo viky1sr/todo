@@ -50,33 +50,14 @@ fn check_all(key: &[u8], aad: &[u8], pt: &[u8], segment: usize) {
     assert_eq!(sp, up, "SP vs upstream: {ctx}");
     assert_eq!(pp, up, "PP vs upstream: {ctx}");
 
-    let ps_dec = aes_gcm_siv_decrypt_polyval_parallel(
-        key,
-        &NONCE,
-        aad,
-        &ps.ciphertext,
-        &ps.tag,
-        segment,
-    )
-    .unwrap();
-    let sp_dec = aes_gcm_siv_decrypt_ctr_parallel(
-        key,
-        &NONCE,
-        aad,
-        &sp.ciphertext,
-        &sp.tag,
-        segment,
-    )
-    .unwrap();
-    let pp_dec = aes_gcm_siv_decrypt_parallel(
-        key,
-        &NONCE,
-        aad,
-        &pp.ciphertext,
-        &pp.tag,
-        segment,
-    )
-    .unwrap();
+    let ps_dec =
+        aes_gcm_siv_decrypt_polyval_parallel(key, &NONCE, aad, &ps.ciphertext, &ps.tag, segment)
+            .unwrap();
+    let sp_dec =
+        aes_gcm_siv_decrypt_ctr_parallel(key, &NONCE, aad, &sp.ciphertext, &sp.tag, segment)
+            .unwrap();
+    let pp_dec =
+        aes_gcm_siv_decrypt_parallel(key, &NONCE, aad, &pp.ciphertext, &pp.tag, segment).unwrap();
     assert_eq!(ps_dec, pt, "PS decrypt: {ctx}");
     assert_eq!(sp_dec, pt, "SP decrypt: {ctx}");
     assert_eq!(pp_dec, pt, "PP decrypt: {ctx}");
@@ -112,8 +93,7 @@ fn invalid_segment_sizes_are_rejected() {
         assert_eq!(polyval_parallel(&[1; 16], b"data", bad), err);
         assert_eq!(polyval_parallel_linear_reduce(&[1; 16], b"data", bad), err);
         assert_eq!(
-            aes_gcm_siv_encrypt_polyval_parallel(KEYS[0], &NONCE, b"", b"data", bad)
-                .map(|_| ()),
+            aes_gcm_siv_encrypt_polyval_parallel(KEYS[0], &NONCE, b"", b"data", bad).map(|_| ()),
             err.map(|_: [u8; 16]| ())
         );
         assert!(assert_polyval_equivalence(&[1; 16], b"data", bad).is_err());
@@ -149,8 +129,8 @@ fn randomized_equivalence() {
         assert_eq!(sp, up, "SP pt={} seg={segment}", pt.len());
         assert_eq!(pp, up, "PP pt={} seg={segment}", pt.len());
 
-        let dec = aes_gcm_siv_decrypt_upstream(&key, &nonce, &aad, &ps.ciphertext, &ps.tag)
-            .unwrap();
+        let dec =
+            aes_gcm_siv_decrypt_upstream(&key, &nonce, &aad, &ps.ciphertext, &ps.tag).unwrap();
         assert_eq!(dec, pt);
     }
 }

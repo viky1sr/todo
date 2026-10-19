@@ -16,8 +16,7 @@ use polyval::hazmat::FieldElement;
 
 /// Identity under `dot`: x^128 mod P(x), little-endian.
 pub(crate) const ONE: [u8; 16] = [
-    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0xc2,
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc2,
 ];
 
 pub(crate) const ZERO: [u8; 16] = [0; 16];
@@ -88,8 +87,8 @@ mod tests {
     use super::*;
 
     const H: [u8; 16] = [
-        0x25, 0x62, 0x19, 0x0f, 0xd5, 0xa4, 0x0d, 0x13, 0xec, 0xb2, 0x6c, 0xc4, 0x20, 0x95,
-        0x7d, 0x5a,
+        0x25, 0x62, 0x19, 0x0f, 0xd5, 0xa4, 0x0d, 0x13, 0xec, 0xb2, 0x6c, 0xc4, 0x20, 0x95, 0x7d,
+        0x5a,
     ];
 
     fn part(hash_byte: u8, blocks: u64, h: FieldElement) -> PolyvalPart {
@@ -115,10 +114,7 @@ mod tests {
         let h = FieldElement::from(H);
         assert_eq!(<[u8; 16]>::from(dot_pow(h, 0)), ONE);
         assert_eq!(<[u8; 16]>::from(dot_pow(h, 1)), H);
-        assert_eq!(
-            <[u8; 16]>::from(dot_pow(h, 3)),
-            <[u8; 16]>::from(h * h * h)
-        );
+        assert_eq!(<[u8; 16]>::from(dot_pow(h, 3)), <[u8; 16]>::from(h * h * h));
         assert_eq!(
             <[u8; 16]>::from(dot_pow(h, 15)),
             <[u8; 16]>::from(dot_pow(h, 7) * dot_pow(h, 8))

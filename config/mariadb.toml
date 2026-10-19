@@ -1,0 +1,5 @@
+# todo configuration: MariaDB accounts (Layer 3). Needs redis.toml and [pii] in app.toml.
+# No password in the URL (rejected); use password_file.
+
+url = "mysql://visry@localhost:3306/todo"            # TODO_MARIADB_URL
+password_file = "secrets/mariadb_password"          # TODO_MARIADB_PASSWORD_FILE

@@ -5,7 +5,7 @@
 ```toml
 [workspace]
 resolver = "3"
-members = [".", "crates/crypto", "crates/zstd", "crates/ipfs", "crates/web", "crates/rest"]
+members = [".", "crates/crypto", "crates/zstd", "crates/ipfs", "crates/web", "crates/rest", "crates/database"]
 
 [workspace.dependencies]
 polyval = { version = "0.7.3", features = ["hazmat"] }
@@ -28,6 +28,7 @@ todo-zstd = { path = "crates/zstd" }
 todo-ipfs = { path = "crates/ipfs" }
 todo-web = { path = "crates/web" }
 todo-rest = { path = "crates/rest" }
+todo-database = { path = "crates/database" }
 
 [package]
 name = "parallel_aes_gcm_siv"
@@ -67,6 +68,8 @@ Do not overwrite actual Cargo.toml with this reference. Keep the authoritative C
 - **`todo-zstd`**: `CompressionMode::{SingleFrameStateful,IndependentFrames}`, stateful encoder and bounded producer, decoder limits and metadata.
 - **`todo-ipfs`**: adapters for in-memory mock vs real IPFS, CID parser, encrypted object blobs, manifests, verification + recovery logic.
 - **`todo-rest`**: request input validators, object/experiment API handlers, error schema. No key schedule or cipher directly.
+- **Root `parallel_aes_gcm_siv::config`** (`src/config/{mod,layer,app,ipfs,mariadb,pgsql,redis}.rs`): one validated view of all runtime settings. Sources: `config/{app,ipfs,mariadb,pgsql,redis}.toml` (dir `TODO_CONFIG_TOML_DIR`, default `./config`; non-secret settings and `*_file` paths only — secret-value keys, unknown keys, non-string/int values and group/world-writable files are rejected) overridden by environment variables. Docker secrets must be mounted mode 0400/0600 owned by the container uid (default 0444 is rejected). `Secret` (zeroized on drop, `mlock`ed best effort, no `Clone`, `Display`/`Debug` print only `<redacted; file:…|env:…>`), `TODO_ENV=production` refuses plain-env secrets (visible in `docker inspect`/Portainer; use `*_FILE`/Docker secrets), URLs with passwords rejected, `harden_process()` (RLIMIT_CORE=0, PR_SET_DUMPABLE=0). CLI: `parallel_aes_gcm_siv --check-config` prints the redacted report (exit 1 if invalid). Root deps added: `todo-database`, `zeroize`, `redis`, `libc`.
+- **`todo-database`**: secret loading (`*_FILE`, owner-only), MariaDB accounts (Argon2id, PII sealed via `todo-crypto` AES-256-GCM-SIV with row/column-bound AAD), Redis sessions, PostgreSQL object metadata (`objects`: owner, CID, nonce/tag, sizes, plan), embedded sqlx migrations (`migrations/mariadb`, `migrations/postgres`). No cipher implementation of its own.
 - **`todo-web`**: scorecards, experiment plots, object health, attack/repair events, exact export statuses; no secret material to client.
 - **root**: cross-crate orchestration, `src/main.rs` thin, `benches/` experiments, `tests/` integration only if actually present.
 

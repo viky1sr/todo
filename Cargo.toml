@@ -1,0 +1,97 @@
+[workspace]
+resolver = "3"
+members = [
+    ".",
+    "crates/crypto",
+    "crates/zstd",
+    "crates/ipfs",
+    "crates/rukubo",
+    "crates/web",
+    "crates/rest",
+    "crates/database",
+    "crates/wasm"
+]
+
+[workspace.dependencies]
+polyval = { version = "0.7.3", features = ["hazmat"] }
+aes-gcm-siv = "0.12.1"
+universal-hash = "0.6.1"
+cipher = "0.5.2"
+aes = "0.9.3"
+ctr = "0.10.1"
+rayon = "1.12.0"
+zstd = "0.14.2"
+tokio = { version = "1.53.2", features = ["rt-multi-thread", "macros", "fs", "io-util", "net", "sync"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+hex-literal = "1.1.0"
+criterion = "0.8.2"
+bytemuck = "1.25.2"
+memmap2 = "0.9.11"
+ctutils = "0.4.3"
+askama = "0.16.1"
+sha2 = "0.11.0"
+chacha20 = { version = "0.10.2", features = ["xchacha"] }
+chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["alloc"] }
+ascon-aead = { version = "0.6.0", default-features = false }
+aegis = "0.9.20"
+hkdf = "0.13.0"
+zeroize = "1.8"
+getrandom = { version = "0.4", features = ["wasm_js"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "multipart", "http2", "query"] }
+rustls = { version = "0.23.45", default-features = false, features = ["aws_lc_rs", "std"] }
+tokio-rustls = { version = "0.26.6", default-features = false, features = ["aws_lc_rs"] }
+flate2 = "1.1"
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "mysql", "postgres", "migrate", "macros", "json"] }
+redis = { version = "1.6.0", default-features = false, features = ["tokio-comp", "connection-manager"] }
+libc = "0.2"
+toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
+argon2 = { version = "0.5.3", features = ["std"] }
+rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "pem"] }
+
+todo-crypto = { path = "crates/crypto" }
+todo-zstd = { path = "crates/zstd" }
+todo-ipfs = { path = "crates/ipfs" }
+rukubo = { path = "crates/rukubo" }
+todo-web = { path = "crates/web" }
+todo-rest = { path = "crates/rest" }
+todo-database = { path = "crates/database" }
+todo-wasm = { path = "crates/wasm" }
+
+[package]
+name = "parallel_aes_gcm_siv"
+version = "0.1.0"
+edition = "2024"
+default-run = "parallel_aes_gcm_siv"
+description = "Komposisi Paralel POLYVAL pada Segmen Hasil Kompresi Zstandard untuk AES-GCM-SIV"
+
+[dependencies]
+todo-crypto = { workspace = true }
+todo-zstd = { workspace = true }
+todo-ipfs = { workspace = true }
+todo-web = { workspace = true }
+todo-rest = { workspace = true }
+rayon = { workspace = true }
+tokio = { workspace = true }
+polyval = { workspace = true }
+aes-gcm-siv = { workspace = true }
+zstd = { workspace = true }
+serde_json = { workspace = true }
+askama = { workspace = true}
+sha2 = { workspace = true }
+sqlx = "0.9.0"
+todo-database = { workspace = true }
+zeroize = { workspace = true }
+redis = { workspace = true }
+libc = { workspace = true }
+toml = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+hex-literal = { workspace = true }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

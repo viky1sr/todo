@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Profil Akun{% endblock %}
+{% block eyebrow %}MariaDB · Argon2id · sesi Redis · PII terenkripsi AES-GCM-SIV{% endblock %}
+{% block heading %}Profil Pengguna{% endblock %}
+{% block content %}
+{% if !accounts_enabled %}
+<section class="card glass backend-card">
+  <div class="backend-icon" aria-hidden="true">
+    <svg viewBox="0 0 24 24"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg>
+  </div>
+  <div>
+    <p><strong>Akun nonaktif:</strong> server berjalan tanpa <code>TODO_MARIADB_URL</code> dan <code>TODO_REDIS_URL</code>.</p>
+  </div>
+</section>
+{% else %}
+{% match username %}
+{% when Some with (name) %}
+<section class="card form-card" id="account-profile">
+  <header class="card-head"><h3>Profil: <code>{{ name }}</code></h3><span class="badge badge-live">{{ role }}</span></header>
+  <p class="muted small">Data pribadi di bawah disimpan di MariaDB sebagai ciphertext AES-256-GCM-SIV (AAD terikat tabel, kolom, dan id pengguna) dan baru didekripsi setelah tag terverifikasi. Data diambil lewat <code>GET /api/v1/auth/me</code> (tanpa cache, tanpa kompresi).</p>
+  <dl class="kv" data-profile>
+    <div><dt>Email</dt><dd data-k="email">…</dd></div>
+    <div><dt>NIK</dt><dd data-k="national_id">…</dd></div>
+    <div><dt>Akun dibuat</dt><dd data-k="created">…</dd></div>
+    <div><dt>Sesi dimulai</dt><dd data-k="session">…</dd></div>
+  </dl>
+  <div class="actions">
+    <button type="button" class="btn btn-ghost" data-logout><span class="spinner" aria-hidden="true"></span>Keluar</button>
+  </div>
+  <div class="callout callout-err" role="alert" data-error hidden></div>
+</section>
+{% when None %}
+<section class="card form-card">
+  <header class="card-head"><h3>Autentikasi Diperlukan</h3></header>
+  <p class="muted">Silakan masuk untuk mengakses informasi akun dan data terenkripsi.</p>
+  <div class="actions">
+    <a href="/login?next=/account" class="btn btn-primary">Buka Halaman Masuk</a>
+  </div>
+</section>
+{% endmatch %}
+{% endif %}
+{% endblock %}

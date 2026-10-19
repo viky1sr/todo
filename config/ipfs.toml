@@ -1,0 +1,21 @@
+# todo configuration: IPFS backend (Layer 5). See app.toml for the rules.
+# Production writes require Kubo RPC; the trustless gateway is read-only and can only
+# serve verified reads. The recommended deployment runs Kubo beside this service on
+# loopback. Kubo peers may still exchange encrypted blocks over a private LAN/Wi-Fi
+# swarm without Internet access. Never expose port 5001 publicly.
+#
+# A remote application host is permitted only with an HTTPS private RFC1918/ULA address
+# and an owner-only authorization-header file. Terminate TLS/auth at a private proxy;
+# keep Kubo itself bound to loopback. Example remote URL: https://192.168.1.20:5443
+# Environment variables TODO_IPFS_BACKEND and TODO_IPFS_URL override these defaults.
+
+backend = "kubo"                         # TODO_IPFS_BACKEND
+url = "http://127.0.0.1:5001"            # TODO_IPFS_URL (private local Kubo RPC)
+local_only = "true"                       # TODO_IPFS_LOCAL_ONLY: no network fetch for missing blocks
+# rpc_authorization_file = "secrets/kubo_rpc_authorization" # TODO_IPFS_RPC_AUTHORIZATION_FILE
+
+[rukubo]
+# Dedicated state outside the source repo; this is not ~/.ipfs and will receive a new
+# Kubo identity plus owner-only private swarm.key on the first Rust-managed start.
+repo_dir = "/home/visry/.local/state/parallel-aes-gcm-siv/rukubo" # TODO_KUBO_REPO
+binary = "/usr/local/bin/ipfs"             # TODO_KUBO_BIN

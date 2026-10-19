@@ -1,0 +1,24 @@
+{% extends "base.html" %}{# Production: administrator node control #}
+{% block title %}RuKubo Private Swarm{% endblock %}
+{% block eyebrow %}Kubo · Private LAN/Wi-Fi{% endblock %}
+{% block heading %}RuKubo Control{% endblock %}
+{% block content %}
+<section class="hero-panel">
+  <div>
+    <p class="eyebrow">Admin-only control</p>
+    <h2>Kubo private yang dikelola Rust</h2>
+    <p>RPC dan gateway Kubo tetap di loopback. Hanya swarm terenkripsi dengan <code>swarm.key</code> yang dapat memakai LAN/Wi-Fi private.</p>
+  </div>
+  <span class="badge {% if running %}badge-live{% else %}badge-mock{% endif %}" id="rukubo-state">{% if running %}RUNNING{% else %}STOPPED{% endif %}</span>
+</section>
+<section class="card" id="rukubo-control">
+  <h2>Status daemon</h2>
+  <dl class="kv">
+    <div><dt>Repository private</dt><dd><code id="rukubo-repository">{{ repository }}</code></dd></div>
+    <div><dt>PID yang dikelola Rust</dt><dd id="rukubo-pid">{% match managed_pid %}{% when Some with (pid) %}{{ pid }}{% when None %}—{% endmatch %}</dd></div>
+  </dl>
+  <p class="muted small">Tombol hanya tersedia bagi sesi admin. WebUI Kubo tidak diproksi atau diekspos oleh aplikasi ini.</p>
+  <button class="btn" id="rukubo-start" type="button" {% if running %}disabled{% endif %}>Mulai Kubo private</button>
+  <p class="muted small" id="rukubo-message" role="status"></p>
+</section>
+{% endblock %}

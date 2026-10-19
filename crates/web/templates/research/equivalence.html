@@ -1,0 +1,87 @@
+{% extends "base.html" %}{# Research: equivalence #}
+{% block title %}Ekuivalensi POLYVAL{% endblock %}
+{% block eyebrow %}Identitas matematis · GF(2<sup>128</sup>){% endblock %}
+{% block heading %}Ekuivalensi POLYVAL{% endblock %}
+{% block content %}
+<div class="grid split">
+  <form class="card form-card" id="equiv-form" data-max-input="{{ max_input_bytes }}" novalidate>
+    <header class="card-head">
+      <h3>Uji sekuensial vs paralel</h3>
+      <span class="muted small">{{ rayon_threads }} thread Rayon</span>
+    </header>
+    <div class="math card-inset">
+      <p><code>dot(a, b) = a · b · x<sup>−128</sup></code> modulo <code>x<sup>128</sup> + x<sup>127</sup> + x<sup>126</sup> + x<sup>121</sup> + 1</code></p>
+      <p>Dengan <code>T<sub>H</sub>(x) = dot(x, H)</code>, segmen <code>(P, n)</code> lalu <code>(Q, m)</code>:
+        <code>combine = (T<sub>H</sub><sup>m</sup>(P) ⊕ Q, n + m)</code></p>
+    </div>
+
+    <div class="row">
+      <label class="field">
+        <span class="field-label">Sumber data</span>
+        <select name="source">
+          <option value="random">Acak (dibuat di peramban)</option>
+          <option value="text">Teks</option>
+        </select>
+      </label>
+      <label class="field" data-show-when="source=random">
+        <span class="field-label">Ukuran</span>
+        <select name="size">
+          <option value="16384">16 KiB</option>
+          <option value="262144">256 KiB</option>
+          <option value="1048576" selected>1 MiB</option>
+          <option value="4194304">4 MiB</option>
+        </select>
+      </label>
+    </div>
+    <label class="field" data-show-when="source=text" hidden>
+      <span class="field-label">Teks</span>
+      <textarea name="text" rows="4" spellcheck="false">POLYVAL berjalan paralel per segmen, tetapi tetap satu pesan.</textarea>
+    </label>
+    <label class="field">
+      <span class="field-label">Ukuran segmen POLYVAL</span>
+      <select name="segment_size">
+        <option value="16">16 B (1 blok)</option>
+        <option value="4096">4 KiB</option>
+        <option value="16384" selected>16 KiB</option>
+        <option value="65536">64 KiB</option>
+        <option value="262144">256 KiB</option>
+      </select>
+    </label>
+    <p class="hint">Uji ini memakai kunci hash <code>H</code> tetap milik server (khusus pengujian) dan hanya mengukur POLYVAL, bukan AES-GCM-SIV penuh.</p>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary" data-run><span class="spinner" aria-hidden="true"></span>Bandingkan</button>
+    </div>
+  </form>
+
+  <section class="results" aria-live="polite" id="equiv-results">
+    <div class="card empty-state" data-empty>
+      <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M12 24h40v4H12zm0 12h40v4H12z" fill="currentColor" opacity=".35"/></svg>
+      <h3>Belum ada perbandingan</h3>
+      <p class="muted">Hasil akan menampilkan nilai POLYVAL sekuensial dan paralel, jumlah segmen, dan status kesetaraan bit.</p>
+    </div>
+    <div data-result hidden>
+      <div class="card result-banner"><div class="banner-main"><span class="badge" data-equiv-badge></span><span class="badge" data-parallel-badge></span></div></div>
+      <div class="grid kpis">
+        <article class="card stat"><span class="stat-label">Data</span><span class="stat-value" data-k="size"></span></article>
+        <article class="card stat"><span class="stat-label">Segmen</span><span class="stat-value" data-k="segments"></span><span class="stat-hint" data-k="segment-size"></span></article>
+        <article class="card stat"><span class="stat-label">Threads</span><span class="stat-value" data-k="threads"></span></article>
+      </div>
+      <article class="card">
+        <header class="card-head"><h3>Nilai POLYVAL</h3><span class="muted small" data-k="algorithm"></span></header>
+        <ul class="tag-list">
+          <li><span class="tag-name">Sekuensial</span><code class="mono" data-k="seq"></code><button type="button" class="btn btn-sm btn-ghost" data-copy="seq">Salin</button></li>
+          <li><span class="tag-name">Paralel</span><code class="mono" data-k="par"></code><button type="button" class="btn btn-sm btn-ghost" data-copy="par">Salin</button></li>
+        </ul>
+      </article>
+      <article class="card">
+        <header class="card-head"><h3>Latensi</h3><span class="badge badge-warn">satu kali jalan · indikatif</span></header>
+        <div class="bars">
+          <div class="bar-row"><span>Sekuensial</span><div class="bar"><span class="bar-fill fill-a" data-bar="seq"></span></div><span data-k="seq-lat"></span></div>
+          <div class="bar-row"><span>Paralel</span><div class="bar"><span class="bar-fill fill-b" data-bar="par"></span></div><span data-k="par-lat"></span></div>
+        </div>
+        <p class="hint" data-k="speedup-note"></p>
+      </article>
+    </div>
+  </section>
+</div>
+{% endblock %}

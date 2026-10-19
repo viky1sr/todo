@@ -1,0 +1,79 @@
+{% extends "base.html" %}{# Research: diagnostics #}
+{% block title %}Pusat Diagnostik &amp; Verifikasi{% endblock %}
+{% block eyebrow %}Verifikasi Pipeline · Ekuivalensi POLYVAL · Benchmark Paralel{% endblock %}
+{% block heading %}Diagnostik Sistem{% endblock %}
+{% block content %}
+<section class="card glass hero">
+  <div>
+    <h2>Pusat Diagnostik &amp; Verifikasi Kriptografi</h2>
+    <p class="muted">
+      Suite pengujian terpadu untuk validasi fail-closed AEAD, pembuktian matematis ekuivalensi multi-segmen POLYVAL, dan benchmark throughput kompresi streaming Zstd + enkripsi paralel Rayon.
+    </p>
+  </div>
+</section>
+
+<div class="tabs" role="tablist" aria-label="Suite Diagnostik">
+  <a href="/pipeline" class="tab" role="tab">Pipeline &amp; Tamper Verification</a>
+  <a href="/equivalence" class="tab" role="tab">Ekuivalensi POLYVAL</a>
+  <a href="/benchmark" class="tab" role="tab">Benchmark Rayon</a>
+</div>
+
+<div class="grid stats three">
+  <div class="card stat">
+    <span class="stat-label">Rayon Thread Pool</span>
+    <span class="stat-value sm">{{ rayon_threads }} Worker</span>
+    <span class="stat-hint">{{ logical_cpus }} CPU logis terdeteksi</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-label">Batas Input Uji</span>
+    <span class="stat-value sm">{{ max_input }}</span>
+    <span class="stat-hint">Max {{ max_input_bytes }} B</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-label">Ambang Paralel</span>
+    <span class="stat-value sm">{{ min_parallel }}</span>
+    <span class="stat-hint">Segmentasi aktif di atas batas</span>
+  </div>
+</div>
+
+<div class="grid three">
+  <section class="card form-card">
+    <header class="card-head">
+      <h3>1. Pipeline &amp; Verifikasi Tamper</h3>
+      <span class="badge badge-live">Fail-Closed</span>
+    </header>
+    <p class="muted small">
+      Uji alur lengkap: Kompresi Zstd streaming &rarr; Segmentasi &rarr; POLYVAL paralel &rarr; AES-GCM-SIV &rarr; Simulasi pemalsuan ciphertext &rarr; Tolak sebelum rilis plaintext.
+    </p>
+    <div class="actions">
+      <a href="/pipeline" class="btn btn-primary btn-sm">Buka Testbed Pipeline</a>
+    </div>
+  </section>
+
+  <section class="card form-card">
+    <header class="card-head">
+      <h3>2. Ekuivalensi POLYVAL</h3>
+      <span class="badge badge-live">Identitas Byte</span>
+    </header>
+    <p class="muted small">
+      Pembuktian matematis bahwa perkalian field Galois paralel menghasilkan tag tunggal yang identik dengan evaluasi serial RFC 8452.
+    </p>
+    <div class="actions">
+      <a href="/equivalence" class="btn btn-primary btn-sm">Buka Uji Ekuivalensi</a>
+    </div>
+  </section>
+
+  <section class="card form-card">
+    <header class="card-head">
+      <h3>3. Benchmark Throughput</h3>
+      <span class="badge badge-live">Rayon Multi-Core</span>
+    </header>
+    <p class="muted small">
+      Ukur latensi dan throughput komparatif serial vs paralel untuk berbagai ukuran payload (64 KiB hingga 4 MiB) secara akurat.
+    </p>
+    <div class="actions">
+      <a href="/benchmark" class="btn btn-primary btn-sm">Buka Suite Benchmark</a>
+    </div>
+  </section>
+</div>
+{% endblock %}

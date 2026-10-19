@@ -1,0 +1,140 @@
+{% extends "base.html" %}{# Production: private node overview #}
+{% block title %}Private Node Overview{% endblock %}
+{% block eyebrow %}Production · Private IPFS Node{% endblock %}
+{% block heading %}Node Overview{% endblock %}
+{% block content %}
+<section class="hero card glass">
+  <div class="hero-text">
+    <span class="chip">Production workspace · private LAN/Wi-Fi</span>
+    <h2>Private node, tanpa gateway publik</h2>
+    <p class="lead">
+      Kelola objek terenkripsi, CID, dan node Kubo private dari satu tempat. Upload diproses sebagai <strong>satu frame Zstd dan satu pesan AES-GCM-SIV</strong> sebelum disimpan ke IPFS.
+      {% match session_user %}
+      {% when Some with (user) %}
+      Sesi aktif terautentikasi sebagai <strong>{{ user }}</strong> (peran: <code>{{ session_role }}</code>).
+      {% when None %}
+      Semua operasi penyimpanan dan dekripsi diautentikasi dengan kontrol akses terpusat.
+      {% endmatch %}
+    </p>
+    <div class="actions">
+      <a class="btn btn-primary" href="/files">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
+        Kelola objek
+      </a>
+      <a class="btn btn-ghost" href="/explore">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7zm0 2.3L18.6 8 12 11.7 5.4 8zM5 9.7l6 3.4v6.6l-6-3.3zm8 10v-6.6l6-3.4v6.7z"/></svg>
+        Jelajahi CID
+      </a>
+      <a class="btn btn-ghost" href="/peers">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+        Private swarm
+      </a>
+      <a class="btn btn-ghost" href="/rukubo">Node control</a>
+    </div>
+  </div>
+  <div class="node-posture" aria-label="Postur keamanan node">
+    <span class="node-posture-icon" aria-hidden="true">⌁</span>
+    <strong>Private by default</strong>
+    <span>API &amp; gateway: loopback</span>
+    <span>Swarm: LAN/Wi-Fi dengan swarm.key</span>
+    <a href="/rukubo">Lihat Node Control <span aria-hidden="true">→</span></a>
+  </div>
+</section>
+
+<section class="grid stats" aria-label="Telemetri runtime produksi">
+  <article class="card stat">
+    <span class="stat-label">Rayon Parallelism</span>
+    <span class="stat-value">{{ rayon_threads }} threads</span>
+    <span class="stat-hint">{{ logical_cpus }} CPU logis aktif</span>
+  </article>
+  <article class="card stat">
+    <span class="stat-label">Ambang Paralel POLYVAL</span>
+    <span class="stat-value">{{ min_parallel }}</span>
+    <span class="stat-hint">segmen default {{ polyval_default_segment }}</span>
+  </article>
+  <article class="card stat">
+    <span class="stat-label">Batas Dekompresi</span>
+    <span class="stat-value">{{ max_decompressed }}</span>
+    <span class="stat-hint">proteksi resource exhaustion</span>
+  </article>
+  <article class="card stat">
+    <span class="stat-label">Backend Penyimpanan</span>
+    <span class="stat-value sm">{{ shell.backend_label }}</span>
+    <span class="stat-hint">{% if shell.backend_live %}Kubo RPC live cluster{% else %}Node penyimpanan{% endif %}</span>
+  </article>
+</section>
+
+<section class="grid two">
+  <article class="card">
+    <header class="card-head">
+      <h3>Service health</h3>
+      <button class="btn btn-sm btn-ghost" type="button" id="health-refresh">Segarkan</button>
+    </header>
+    <dl class="kv" id="health-details">
+      <div><dt>Status aplikasi</dt><dd data-field="status">—</dd></div>
+      <div><dt>Nama Layanan</dt><dd data-field="service">—</dd></div>
+      <div><dt>Versi Sistem</dt><dd data-field="version">—</dd></div>
+      <div><dt>Rust Edition</dt><dd data-field="rust_edition">—</dd></div>
+      <div><dt>Backend objek</dt><dd>
+        <span class="badge {% if shell.backend_live %}badge-live{% else %}badge-mock{% endif %}"><span class="dot" aria-hidden="true"></span>{{ shell.backend_label }}</span>
+      </dd></div>
+      <div><dt>Autentikasi (MariaDB + Redis)</dt><dd>
+        {% if accounts_enabled %}
+        <span class="badge badge-live">Aktif (Argon2id &amp; Sesi Redis)</span>
+        {% else %}
+        <span class="badge badge-mock">Nonaktif</span>
+        {% endif %}
+      </dd></div>
+      <div><dt>Katalog Objek (PostgreSQL)</dt><dd>
+        {% if catalog_enabled %}
+        <span class="badge badge-live">Aktif (Metadata Objek Terverifikasi)</span>
+        {% else %}
+        <span class="badge badge-mock">Nonaktif</span>
+        {% endif %}
+      </dd></div>
+      <div><dt>Profil Build</dt><dd><code>{{ shell.build_profile }}</code> · v{{ shell.version }}</dd></div>
+    </dl>
+  </article>
+
+  <article class="card">
+    <header class="card-head">
+      <h3>Alur objek terenkripsi</h3>
+      <span class="muted small">Satu objek · satu autentikasi</span>
+    </header>
+    <ol class="flow">
+      <li><span class="flow-step">1</span><div><strong>Kompresi Zstd Streaming</strong><p>Meminimalkan jejak penyimpanan dan transmisi jaringan.</p></div></li>
+      <li><span class="flow-step">2</span><div><strong>Autentikasi AAD &amp; Nonce</strong><p>AAD terikat metadata tabel/pengguna, nonce unik per objek.</p></div></li>
+      <li><span class="flow-step">3</span><div><strong>POLYVAL Paralel Multi-Segmen</strong><p>Ekuivalen secara matematis dengan RFC 8452 serial.</p></div></li>
+      <li><span class="flow-step">4</span><div><strong>Sintesis Tag AEAD Tunggal</strong><p>Tag kriptografis divalidasi penuh sebelum enkripsi/dekripsi.</p></div></li>
+      <li><span class="flow-step">5</span><div><strong>Enkripsi AES-CTR 256-bit</strong><p>Ciphertext final didistribusikan ke penyimpanan terdistribusi.</p></div></li>
+      <li><span class="flow-step">6</span><div><strong>Penyimpanan Kubo IPFS</strong><p>Blok raw CIDv1 berintegritas tinggi dengan pin persistensi.</p></div></li>
+    </ol>
+  </article>
+</section>
+
+<section aria-labelledby="inv-title">
+  <h3 class="section-title" id="inv-title">Invarian yang dijaga</h3>
+  <div class="grid four">
+    <article class="card invariant">
+      <span class="inv-icon" aria-hidden="true">①</span>
+      <h4>Single-Tag AEAD</h4>
+      <p>Seluruh pesan menghasilkan tepat satu tag autentikasi; komputasi paralel menghasilkan output byte-identik dengan standar RFC 8452.</p>
+    </article>
+    <article class="card invariant">
+      <span class="inv-icon" aria-hidden="true">②</span>
+      <h4>Verifikasi Tanpa Kebocoran</h4>
+      <p>Verifikasi tag dilakukan secara constant-time; zero plaintext release sebelum validasi tag sukses.</p>
+    </article>
+    <article class="card invariant">
+      <span class="inv-icon" aria-hidden="true">③</span>
+      <h4>Perlindungan PII Enkripsi Kolom</h4>
+      <p>Data pribadi (Email, NIK) tersimpan terenkripsi AES-256-GCM-SIV dengan AAD terikat baris di MariaDB.</p>
+    </article>
+    <article class="card invariant">
+      <span class="inv-icon" aria-hidden="true">④</span>
+      <h4>Ketahanan HTTP &amp; Sesi</h4>
+      <p>Strict CSP tanpa inline scripts/styles, TLS 1.3 only, HSTS 1 tahun, dan cookie sesi HttpOnly SameSite=Strict.</p>
+    </article>
+  </div>
+</section>
+{% endblock %}

@@ -1,17 +1,11 @@
--- Layer 3: user accounts (MariaDB). Applied by sqlx (`todo-rest migrate` or at startup).
--- password_hash: Argon2id PHC string. *_enc: PII sealed by todo-crypto AES-256-GCM-SIV,
--- layout 0x01 || nonce(12) || ciphertext || tag(16), AAD = "todo/pii/v1" || table ||
--- column || user id, so a blob copied to another row/column fails authentication.
-CREATE TABLE users (
-    id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    username        VARCHAR(32)     NOT NULL,
-    password_hash   VARCHAR(255)    NOT NULL,
-    role            ENUM('user', 'admin') NOT NULL DEFAULT 'user',
-    email_enc       VARBINARY(512)  NULL,
-    national_id_enc VARBINARY(128)  NULL,
-    created_at      TIMESTAMP(6)    NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    updated_at      TIMESTAMP(6)    NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
-                                    ON UPDATE CURRENT_TIMESTAMP(6),
-    PRIMARY KEY (id),
-    UNIQUE KEY uq_users_username (username)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_bin;
+-- Layer 3: user accounts (MariaDB) seed data.
+-- Seed accounts: user (user@skycipher.com) and admin (admin@skycipher.com)
+-- Initial default password: "correct horse battery"
+-- Argon2id PHC hash (m=19456, t=2, p=1).
+INSERT INTO users (username, password_hash, role)
+VALUES
+    ('user', '$argon2id$v=19$m=19456,t=2,p=1$AZOFoyrtTUJiLTrFhC6cQA$sc3Kelwj5+D5fVT9iUhyxp+ZztVWkaxdV6RiTnJGPjQ', 'user'),
+    ('admin', '$argon2id$v=19$m=19456,t=2,p=1$AZOFoyrtTUJiLTrFhC6cQA$sc3Kelwj5+D5fVT9iUhyxp+ZztVWkaxdV6RiTnJGPjQ', 'admin')
+ON DUPLICATE KEY UPDATE
+    password_hash = VALUES(password_hash),
+    role = VALUES(role);

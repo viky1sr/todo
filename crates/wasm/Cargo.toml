@@ -1,0 +1,21 @@
+[package]
+name = "todo-wasm"
+version = "0.1.0"
+edition = "2024"
+description = "WebAssembly crypto and IPFS verified-fetch verifier for browser Service Worker"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+getrandom = { workspace = true }
+aes-gcm-siv = { workspace = true }
+todo-crypto = { workspace = true }
+todo-ipfs = { workspace = true }
+todo-zstd = { workspace = true }
+
+[dev-dependencies]
+hex-literal = { workspace = true }

@@ -1,0 +1,1523 @@
+./target/criterion/
+├── aes_gcm_siv_encrypt
+│   ├── 1048576
+│   │   └── report
+│   │       ├── index.html
+│   │       └── violin.svg
+│   ├── 16777216
+│   │   └── report
+│   │       ├── index.html
+│   │       └── violin.svg
+│   ├── 262144
+│   │   └── report
+│   │       ├── index.html
+│   │       └── violin.svg
+│   ├── 4194304
+│   │   └── report
+│   │       ├── index.html
+│   │       └── violin.svg
+│   ├── PP_both_parallel
+│   │   ├── 1048576
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 16777216
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── iteration_times_small.svg
+│   │   │       ├── iteration_times.svg
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── SD.svg
+│   │   │       └── typical.svg
+│   │   ├── 262144
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 4194304
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── lines.svg
+│   │       ├── lines_throughput.svg
+│   │       └── violin.svg
+│   ├── PS_polyval_parallel
+│   │   ├── 1048576
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 16777216
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── iteration_times_small.svg
+│   │   │       ├── iteration_times.svg
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── SD.svg
+│   │   │       └── typical.svg
+│   │   ├── 262144
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 4194304
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── lines.svg
+│   │       ├── lines_throughput.svg
+│   │       └── violin.svg
+│   ├── report
+│   │   ├── index.html
+│   │   ├── lines.svg
+│   │   ├── lines_throughput.svg
+│   │   └── violin.svg
+│   ├── SP_ctr_parallel
+│   │   ├── 1048576
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 16777216
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── iteration_times_small.svg
+│   │   │       ├── iteration_times.svg
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── SD.svg
+│   │   │       └── typical.svg
+│   │   ├── 262144
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 4194304
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── lines.svg
+│   │       ├── lines_throughput.svg
+│   │       └── violin.svg
+│   ├── SS
+│   │   ├── 1048576
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 16777216
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── iteration_times_small.svg
+│   │   │       ├── iteration_times.svg
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── SD.svg
+│   │   │       └── typical.svg
+│   │   ├── 262144
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 4194304
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── lines.svg
+│   │       ├── lines_throughput.svg
+│   │       └── violin.svg
+│   └── upstream
+│       ├── 1048576
+│       │   ├── base
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   ├── new
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   └── report
+│       │       ├── index.html
+│       │       ├── MAD.svg
+│       │       ├── mean.svg
+│       │       ├── median.svg
+│       │       ├── pdf_small.svg
+│       │       ├── pdf.svg
+│       │       ├── regression_small.svg
+│       │       ├── regression.svg
+│       │       ├── SD.svg
+│       │       ├── slope.svg
+│       │       └── typical.svg
+│       ├── 16777216
+│       │   ├── base
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   ├── new
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   └── report
+│       │       ├── index.html
+│       │       ├── iteration_times_small.svg
+│       │       ├── iteration_times.svg
+│       │       ├── MAD.svg
+│       │       ├── mean.svg
+│       │       ├── median.svg
+│       │       ├── pdf_small.svg
+│       │       ├── pdf.svg
+│       │       ├── SD.svg
+│       │       └── typical.svg
+│       ├── 262144
+│       │   ├── base
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   ├── new
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   └── report
+│       │       ├── index.html
+│       │       ├── MAD.svg
+│       │       ├── mean.svg
+│       │       ├── median.svg
+│       │       ├── pdf_small.svg
+│       │       ├── pdf.svg
+│       │       ├── regression_small.svg
+│       │       ├── regression.svg
+│       │       ├── SD.svg
+│       │       ├── slope.svg
+│       │       └── typical.svg
+│       ├── 4194304
+│       │   ├── base
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   ├── new
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   └── report
+│       │       ├── index.html
+│       │       ├── MAD.svg
+│       │       ├── mean.svg
+│       │       ├── median.svg
+│       │       ├── pdf_small.svg
+│       │       ├── pdf.svg
+│       │       ├── regression_small.svg
+│       │       ├── regression.svg
+│       │       ├── SD.svg
+│       │       ├── slope.svg
+│       │       └── typical.svg
+│       └── report
+│           ├── index.html
+│           ├── lines.svg
+│           ├── lines_throughput.svg
+│           └── violin.svg
+├── aes_gcm_siv_throughput
+│   ├── 1048576
+│   │   └── report
+│   │       ├── index.html
+│   │       └── violin.svg
+│   ├── 262144
+│   │   └── report
+│   │       ├── index.html
+│   │       └── violin.svg
+│   ├── 4194304
+│   │   └── report
+│   │       ├── index.html
+│   │       └── violin.svg
+│   ├── parallel_rayon
+│   │   ├── 1048576
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 262144
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 4194304
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── lines.svg
+│   │       ├── lines_throughput.svg
+│   │       └── violin.svg
+│   ├── report
+│   │   ├── index.html
+│   │   ├── lines.svg
+│   │   ├── lines_throughput.svg
+│   │   └── violin.svg
+│   └── sequential
+│       ├── 1048576
+│       │   ├── base
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   ├── new
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   └── report
+│       │       ├── index.html
+│       │       ├── MAD.svg
+│       │       ├── mean.svg
+│       │       ├── median.svg
+│       │       ├── pdf_small.svg
+│       │       ├── pdf.svg
+│       │       ├── regression_small.svg
+│       │       ├── regression.svg
+│       │       ├── SD.svg
+│       │       ├── slope.svg
+│       │       └── typical.svg
+│       ├── 262144
+│       │   ├── base
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   ├── new
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   └── report
+│       │       ├── index.html
+│       │       ├── MAD.svg
+│       │       ├── mean.svg
+│       │       ├── median.svg
+│       │       ├── pdf_small.svg
+│       │       ├── pdf.svg
+│       │       ├── regression_small.svg
+│       │       ├── regression.svg
+│       │       ├── SD.svg
+│       │       ├── slope.svg
+│       │       └── typical.svg
+│       ├── 4194304
+│       │   ├── base
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   ├── new
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   └── report
+│       │       ├── index.html
+│       │       ├── MAD.svg
+│       │       ├── mean.svg
+│       │       ├── median.svg
+│       │       ├── pdf_small.svg
+│       │       ├── pdf.svg
+│       │       ├── regression_small.svg
+│       │       ├── regression.svg
+│       │       ├── SD.svg
+│       │       ├── slope.svg
+│       │       └── typical.svg
+│       └── report
+│           ├── index.html
+│           ├── lines.svg
+│           ├── lines_throughput.svg
+│           └── violin.svg
+├── polyval_segment_size
+│   ├── 1048576
+│   │   ├── base
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   ├── new
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── MAD.svg
+│   │       ├── mean.svg
+│   │       ├── median.svg
+│   │       ├── pdf_small.svg
+│   │       ├── pdf.svg
+│   │       ├── regression_small.svg
+│   │       ├── regression.svg
+│   │       ├── SD.svg
+│   │       ├── slope.svg
+│   │       └── typical.svg
+│   ├── 16384
+│   │   ├── base
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   ├── new
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── MAD.svg
+│   │       ├── mean.svg
+│   │       ├── median.svg
+│   │       ├── pdf_small.svg
+│   │       ├── pdf.svg
+│   │       ├── regression_small.svg
+│   │       ├── regression.svg
+│   │       ├── SD.svg
+│   │       ├── slope.svg
+│   │       └── typical.svg
+│   ├── 16777216
+│   │   ├── base
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   ├── new
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── MAD.svg
+│   │       ├── mean.svg
+│   │       ├── median.svg
+│   │       ├── pdf_small.svg
+│   │       ├── pdf.svg
+│   │       ├── regression_small.svg
+│   │       ├── regression.svg
+│   │       ├── SD.svg
+│   │       ├── slope.svg
+│   │       └── typical.svg
+│   ├── 262144
+│   │   ├── base
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   ├── new
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── MAD.svg
+│   │       ├── mean.svg
+│   │       ├── median.svg
+│   │       ├── pdf_small.svg
+│   │       ├── pdf.svg
+│   │       ├── regression_small.svg
+│   │       ├── regression.svg
+│   │       ├── SD.svg
+│   │       ├── slope.svg
+│   │       └── typical.svg
+│   ├── 4194304
+│   │   ├── base
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   ├── new
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── MAD.svg
+│   │       ├── mean.svg
+│   │       ├── median.svg
+│   │       ├── pdf_small.svg
+│   │       ├── pdf.svg
+│   │       ├── regression_small.svg
+│   │       ├── regression.svg
+│   │       ├── SD.svg
+│   │       ├── slope.svg
+│   │       └── typical.svg
+│   ├── 65536
+│   │   ├── base
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   ├── new
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── MAD.svg
+│   │       ├── mean.svg
+│   │       ├── median.svg
+│   │       ├── pdf_small.svg
+│   │       ├── pdf.svg
+│   │       ├── regression_small.svg
+│   │       ├── regression.svg
+│   │       ├── SD.svg
+│   │       ├── slope.svg
+│   │       └── typical.svg
+│   └── report
+│       ├── index.html
+│       └── violin.svg
+├── polyval_size
+│   ├── 1048576
+│   │   └── report
+│   │       ├── index.html
+│   │       └── violin.svg
+│   ├── 16777216
+│   │   └── report
+│   │       ├── index.html
+│   │       └── violin.svg
+│   ├── 262144
+│   │   └── report
+│   │       ├── index.html
+│   │       └── violin.svg
+│   ├── 4194304
+│   │   └── report
+│   │       ├── index.html
+│   │       └── violin.svg
+│   ├── 65536
+│   │   └── report
+│   │       ├── index.html
+│   │       └── violin.svg
+│   ├── parallel_local_linear_reduce
+│   │   ├── 1048576
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 16777216
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 262144
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 4194304
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 65536
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── lines.svg
+│   │       ├── lines_throughput.svg
+│   │       └── violin.svg
+│   ├── parallel_tree
+│   │   ├── 1048576
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 16777216
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 262144
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 4194304
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 65536
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── lines.svg
+│   │       ├── lines_throughput.svg
+│   │       └── violin.svg
+│   ├── report
+│   │   ├── index.html
+│   │   ├── lines.svg
+│   │   ├── lines_throughput.svg
+│   │   └── violin.svg
+│   └── sequential
+│       ├── 1048576
+│       │   ├── base
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   ├── new
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   └── report
+│       │       ├── index.html
+│       │       ├── MAD.svg
+│       │       ├── mean.svg
+│       │       ├── median.svg
+│       │       ├── pdf_small.svg
+│       │       ├── pdf.svg
+│       │       ├── regression_small.svg
+│       │       ├── regression.svg
+│       │       ├── SD.svg
+│       │       ├── slope.svg
+│       │       └── typical.svg
+│       ├── 16777216
+│       │   ├── base
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   ├── new
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   └── report
+│       │       ├── index.html
+│       │       ├── iteration_times_small.svg
+│       │       ├── iteration_times.svg
+│       │       ├── MAD.svg
+│       │       ├── mean.svg
+│       │       ├── median.svg
+│       │       ├── pdf_small.svg
+│       │       ├── pdf.svg
+│       │       ├── SD.svg
+│       │       └── typical.svg
+│       ├── 262144
+│       │   ├── base
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   ├── new
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   └── report
+│       │       ├── index.html
+│       │       ├── MAD.svg
+│       │       ├── mean.svg
+│       │       ├── median.svg
+│       │       ├── pdf_small.svg
+│       │       ├── pdf.svg
+│       │       ├── regression_small.svg
+│       │       ├── regression.svg
+│       │       ├── SD.svg
+│       │       ├── slope.svg
+│       │       └── typical.svg
+│       ├── 4194304
+│       │   ├── base
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   ├── new
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   └── report
+│       │       ├── index.html
+│       │       ├── MAD.svg
+│       │       ├── mean.svg
+│       │       ├── median.svg
+│       │       ├── pdf_small.svg
+│       │       ├── pdf.svg
+│       │       ├── regression_small.svg
+│       │       ├── regression.svg
+│       │       ├── SD.svg
+│       │       ├── slope.svg
+│       │       └── typical.svg
+│       ├── 65536
+│       │   ├── base
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   ├── new
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   └── report
+│       │       ├── index.html
+│       │       ├── MAD.svg
+│       │       ├── mean.svg
+│       │       ├── median.svg
+│       │       ├── pdf_small.svg
+│       │       ├── pdf.svg
+│       │       ├── regression_small.svg
+│       │       ├── regression.svg
+│       │       ├── SD.svg
+│       │       ├── slope.svg
+│       │       └── typical.svg
+│       └── report
+│           ├── index.html
+│           ├── lines.svg
+│           ├── lines_throughput.svg
+│           └── violin.svg
+├── polyval_threads
+│   ├── 1
+│   │   ├── base
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   ├── new
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── iteration_times_small.svg
+│   │       ├── iteration_times.svg
+│   │       ├── MAD.svg
+│   │       ├── mean.svg
+│   │       ├── median.svg
+│   │       ├── pdf_small.svg
+│   │       ├── pdf.svg
+│   │       ├── SD.svg
+│   │       └── typical.svg
+│   ├── 2
+│   │   ├── base
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   ├── new
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── MAD.svg
+│   │       ├── mean.svg
+│   │       ├── median.svg
+│   │       ├── pdf_small.svg
+│   │       ├── pdf.svg
+│   │       ├── regression_small.svg
+│   │       ├── regression.svg
+│   │       ├── SD.svg
+│   │       ├── slope.svg
+│   │       └── typical.svg
+│   ├── 4
+│   │   ├── base
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   ├── new
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── MAD.svg
+│   │       ├── mean.svg
+│   │       ├── median.svg
+│   │       ├── pdf_small.svg
+│   │       ├── pdf.svg
+│   │       ├── regression_small.svg
+│   │       ├── regression.svg
+│   │       ├── SD.svg
+│   │       ├── slope.svg
+│   │       └── typical.svg
+│   ├── 8
+│   │   ├── base
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   ├── new
+│   │   │   ├── benchmark.json
+│   │   │   ├── estimates.json
+│   │   │   ├── sample.json
+│   │   │   └── tukey.json
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── MAD.svg
+│   │       ├── mean.svg
+│   │       ├── median.svg
+│   │       ├── pdf_small.svg
+│   │       ├── pdf.svg
+│   │       ├── regression_small.svg
+│   │       ├── regression.svg
+│   │       ├── SD.svg
+│   │       ├── slope.svg
+│   │       └── typical.svg
+│   └── report
+│       ├── index.html
+│       └── violin.svg
+├── polyval_throughput
+│   ├── 1048576
+│   │   └── report
+│   │       ├── index.html
+│   │       └── violin.svg
+│   ├── 262144
+│   │   └── report
+│   │       ├── index.html
+│   │       └── violin.svg
+│   ├── 4194304
+│   │   └── report
+│   │       ├── index.html
+│   │       └── violin.svg
+│   ├── 65536
+│   │   └── report
+│   │       ├── index.html
+│   │       └── violin.svg
+│   ├── parallel_rayon
+│   │   ├── 1048576
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 262144
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 4194304
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   ├── 65536
+│   │   │   ├── base
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   ├── new
+│   │   │   │   ├── benchmark.json
+│   │   │   │   ├── estimates.json
+│   │   │   │   ├── sample.json
+│   │   │   │   └── tukey.json
+│   │   │   └── report
+│   │   │       ├── index.html
+│   │   │       ├── MAD.svg
+│   │   │       ├── mean.svg
+│   │   │       ├── median.svg
+│   │   │       ├── pdf_small.svg
+│   │   │       ├── pdf.svg
+│   │   │       ├── regression_small.svg
+│   │   │       ├── regression.svg
+│   │   │       ├── SD.svg
+│   │   │       ├── slope.svg
+│   │   │       └── typical.svg
+│   │   └── report
+│   │       ├── index.html
+│   │       ├── lines.svg
+│   │       ├── lines_throughput.svg
+│   │       └── violin.svg
+│   ├── report
+│   │   ├── index.html
+│   │   ├── lines.svg
+│   │   ├── lines_throughput.svg
+│   │   └── violin.svg
+│   └── sequential
+│       ├── 1048576
+│       │   ├── base
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   ├── new
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   └── report
+│       │       ├── index.html
+│       │       ├── MAD.svg
+│       │       ├── mean.svg
+│       │       ├── median.svg
+│       │       ├── pdf_small.svg
+│       │       ├── pdf.svg
+│       │       ├── regression_small.svg
+│       │       ├── regression.svg
+│       │       ├── SD.svg
+│       │       ├── slope.svg
+│       │       └── typical.svg
+│       ├── 262144
+│       │   ├── base
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   ├── new
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   └── report
+│       │       ├── index.html
+│       │       ├── MAD.svg
+│       │       ├── mean.svg
+│       │       ├── median.svg
+│       │       ├── pdf_small.svg
+│       │       ├── pdf.svg
+│       │       ├── regression_small.svg
+│       │       ├── regression.svg
+│       │       ├── SD.svg
+│       │       ├── slope.svg
+│       │       └── typical.svg
+│       ├── 4194304
+│       │   ├── base
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   ├── new
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   └── report
+│       │       ├── index.html
+│       │       ├── MAD.svg
+│       │       ├── mean.svg
+│       │       ├── median.svg
+│       │       ├── pdf_small.svg
+│       │       ├── pdf.svg
+│       │       ├── regression_small.svg
+│       │       ├── regression.svg
+│       │       ├── SD.svg
+│       │       ├── slope.svg
+│       │       └── typical.svg
+│       ├── 65536
+│       │   ├── base
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   ├── new
+│       │   │   ├── benchmark.json
+│       │   │   ├── estimates.json
+│       │   │   ├── sample.json
+│       │   │   └── tukey.json
+│       │   └── report
+│       │       ├── index.html
+│       │       ├── MAD.svg
+│       │       ├── mean.svg
+│       │       ├── median.svg
+│       │       ├── pdf_small.svg
+│       │       ├── pdf.svg
+│       │       ├── regression_small.svg
+│       │       ├── regression.svg
+│       │       ├── SD.svg
+│       │       ├── slope.svg
+│       │       └── typical.svg
+│       └── report
+│           ├── index.html
+│           ├── lines.svg
+│           ├── lines_throughput.svg
+│           └── violin.svg
+└── report
+    └── index.html
+
+306 directories, 1215 files

@@ -1,0 +1,15 @@
+[package]
+name = "todo-zstd"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+zstd = { workspace = true }
+rayon = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+todo-crypto = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+hex-literal = { workspace = true }

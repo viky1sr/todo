@@ -1,0 +1,955 @@
+diff -ruN '--exclude=secrets' '--exclude=target' '--exclude=.git' '--exclude=.idea' /mnt/data/todo_original/.github/workflows/ci.yml /mnt/data/todo_work/todo/.github/workflows/ci.yml
+--- /mnt/data/todo_original/.github/workflows/ci.yml	1970-01-01 00:00:00.000000000 +0000
++++ /mnt/data/todo_work/todo/.github/workflows/ci.yml	2026-10-19 02:44:48.086820214 +0000
+@@ -0,0 +1,52 @@
++name: rust-production-gate
++
++on:
++  push:
++  pull_request:
++
++permissions:
++  contents: read
++
++env:
++  CARGO_TERM_COLOR: always
++
++jobs:
++  verify:
++    runs-on: ubuntu-latest
++    timeout-minutes: 45
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Toolchain
++        run: |
++          rustup toolchain install 1.99.1 --profile minimal --component rustfmt,clippy
++          rustup override set 1.99.1
++          rustc --version
++          cargo --version
++
++      - name: Repository preflight
++        run: bash scripts/check_workspace.sh --root . --mode preflight
++
++      - name: Formatting
++        run: cargo fmt --all -- --check
++
++      - name: Check
++        run: cargo check --workspace --all-targets --locked
++
++      - name: Clippy
++        run: cargo clippy --workspace --all-targets --locked -- -D warnings
++
++      - name: Tests
++        run: cargo test --workspace --locked
++
++      - name: Release tests
++        run: cargo test --workspace --release --locked
++
++      - name: Release build
++        run: cargo build --workspace --release --locked
++
++      - name: RustSec audit
++        run: |
++          cargo install cargo-audit --locked
++          cargo audit
+diff -ruN '--exclude=secrets' '--exclude=target' '--exclude=.git' '--exclude=.idea' /mnt/data/todo_original/crates/crypto/src/polyval_par.rs /mnt/data/todo_work/todo/crates/crypto/src/polyval_par.rs
+--- /mnt/data/todo_original/crates/crypto/src/polyval_par.rs	2026-10-12 13:31:01.000000000 +0000
++++ /mnt/data/todo_work/todo/crates/crypto/src/polyval_par.rs	2026-10-19 02:41:32.862963124 +0000
+@@ -28,6 +28,10 @@
+ /// POLYVAL block size in bytes.
+ pub const POLYVAL_BLOCK_SIZE: usize = 16;
+ 
++/// Small sequential leaf used by the fused divide-and-conquer tree. This avoids spawning
++/// Rayon work for every individual segment while keeping tree depth logarithmic.
++const TREE_LEAF_SEGMENTS: usize = 8;
++
+ /// Reject segment sizes that would place zero-padding in the middle of the stream.
+ pub fn validate_segment_size(segment_size: usize) -> Result<(), CryptoError> {
+     if segment_size == 0 || !segment_size.is_multiple_of(POLYVAL_BLOCK_SIZE) {
+@@ -100,24 +104,75 @@
+         .fold(PolyvalPart::empty(), |acc, part| acc.combine(part))
+ }
+ 
+-/// Ordered recursive tree reduction. Left and right halves may be evaluated concurrently,
+-/// but `left.combine(right)` is always performed in original stream order.
+-fn reduce_ordered(parts: &[PolyvalPart]) -> PolyvalPart {
+-    match parts.len() {
+-        0 => PolyvalPart::empty(),
+-        1 => parts[0],
+-        2 => parts[0].combine(parts[1]),
+-        len => {
+-            let mid = len / 2;
+-            let (left, right) = rayon::join(
+-                || reduce_ordered(&parts[..mid]),
+-                || reduce_ordered(&parts[mid..]),
+-            );
+-            left.combine(right)
+-        }
++fn segment_part(
++    h_key: &[u8; 16],
++    segment: &[u8],
++    segment_size: usize,
++    full_blocks: u64,
++    full_power: FieldElement,
++) -> PolyvalPart {
++    if segment.len() == segment_size {
++        polyval_part_sequential_with_power(h_key, segment, full_blocks, full_power)
++    } else {
++        polyval_part_sequential(h_key, segment)
+     }
+ }
+ 
++/// Fused ordered divide-and-conquer evaluation. Unlike the measurement baseline, the primary
++/// path does not first materialize one `PolyvalPart` per segment. Each leaf hashes a small run
++/// of adjacent segments and the recursion composes left before right, preserving the exact
++/// concatenation order required by RFC 8452.
++fn reduce_data_ordered(
++    h_key: &[u8; 16],
++    data: &[u8],
++    segment_size: usize,
++    full_blocks: u64,
++    full_power: FieldElement,
++) -> PolyvalPart {
++    let segments = segment_count(data.len(), segment_size);
++    if segments == 0 {
++        return PolyvalPart::empty();
++    }
++    if segments <= TREE_LEAF_SEGMENTS {
++        return data.chunks(segment_size).fold(PolyvalPart::empty(), |acc, segment| {
++            acc.combine(segment_part(
++                h_key,
++                segment,
++                segment_size,
++                full_blocks,
++                full_power,
++            ))
++        });
++    }
++
++    // Split only on a segment boundary. Therefore a partial final POLYVAL block can occur only
++    // in the right-most subtree, exactly as in the sequential byte stream.
++    let left_segments = segments / 2;
++    let split = left_segments * segment_size;
++    let (left_data, right_data) = data.split_at(split);
++    let (left, right) = rayon::join(
++        || {
++            reduce_data_ordered(
++                h_key,
++                left_data,
++                segment_size,
++                full_blocks,
++                full_power,
++            )
++        },
++        || {
++            reduce_data_ordered(
++                h_key,
++                right_data,
++                segment_size,
++                full_blocks,
++                full_power,
++            )
++        },
++    );
++    left.combine(right)
++}
++
+ /// Caller must have validated `segment_size`.
+ pub(crate) fn polyval_part_parallel(
+     h_key: &[u8; 16],
+@@ -130,8 +185,16 @@
+         return polyval_part_sequential(h_key, data);
+     }
+ 
+-    let parts = local_parts(h_key, data, segment_size);
+-    reduce_ordered(&parts)
++    let h = FieldElement::from(*h_key);
++    let full_blocks = (segment_size / POLYVAL_BLOCK_SIZE) as u64;
++    let full_power = dot_pow(h, full_blocks);
++    reduce_data_ordered(
++        h_key,
++        data,
++        segment_size,
++        full_blocks,
++        full_power,
++    )
+ }
+ 
+ #[cfg(test)]
+@@ -194,6 +257,23 @@
+         assert_eq!(
+             polyval_parallel(&h, &data, seg).unwrap(),
+             polyval_sequential(&h, &data)
++        );
++    }
++
++    #[test]
++    fn fused_tree_matches_linear_for_many_segments() {
++        let h = [0x5au8; 16];
++        let seg = 16usize;
++        let data: Vec<u8> = (0..(257 * seg + 13))
++            .map(|i| (i.wrapping_mul(73) % 251) as u8)
++            .collect();
++        assert_eq!(
++            polyval_parallel(&h, &data, seg),
++            polyval_parallel_linear_reduce(&h, &data, seg)
++        );
++        assert_eq!(
++            polyval_parallel(&h, &data, seg).unwrap(),
++            polyval_sequential(&h, &data)
+         );
+     }
+ }
+diff -ruN '--exclude=secrets' '--exclude=target' '--exclude=.git' '--exclude=.idea' /mnt/data/todo_original/crates/rest/src/download.rs /mnt/data/todo_work/todo/crates/rest/src/download.rs
+--- /mnt/data/todo_original/crates/rest/src/download.rs	2026-10-14 08:16:36.000000000 +0000
++++ /mnt/data/todo_work/todo/crates/rest/src/download.rs	2026-10-19 02:41:32.862868728 +0000
+@@ -15,9 +15,9 @@
+ //! a 200. The key is the server-side `TODO_UPLOAD_KEY_HEX`; the nonce is the one
+ //! returned by the upload (format version 1 does not store it).
+ //!
+-//! **No authorization:** CID and nonce are not secrets, so anyone who can reach this
+-//! route and knows both can download the plaintext. Put the service behind
+-//! authentication before exposing it.
++//! Authorization is enforced before fetch/decrypt: session-authenticated web callers are
++//! already verified by `todo-web`; direct REST callers use the configured bearer token. CID and
++//! nonce are public parameters and are never treated as authorization secrets.
+ 
+ use crate::upload::{ObjectError, SPOOL_BUFFER, TAG_LEN, TempFile, decode_hex};
+ use crate::{RestServiceController, run_blocking};
+@@ -200,8 +200,16 @@
+     ObjectError::new(422, format!("malformed sealed object: {msg}"))
+ }
+ 
+-fn u64_at(buf: &[u8], at: usize) -> u64 {
+-    u64::from_le_bytes(buf[at..at + 8].try_into().expect("8 bytes"))
++fn u64_at(buf: &[u8], at: usize) -> Result<u64, ObjectError> {
++    let end = at
++        .checked_add(8)
++        .ok_or_else(|| malformed("integer offset overflow"))?;
++    let bytes = buf
++        .get(at..end)
++        .ok_or_else(|| malformed("truncated integer"))?;
++    let mut word = [0u8; 8];
++    word.copy_from_slice(bytes);
++    Ok(u64::from_le_bytes(word))
+ }
+ 
+ /// Verify and decrypt a sealed stream (format version 1, AES-GCM-SIV) stored in
+@@ -236,7 +244,7 @@
+             "unsupported sealed format (only version 1 / AES-GCM-SIV)",
+         ));
+     }
+-    let count = usize::try_from(u64_at(&map, 5)).map_err(|_| malformed("segment count"))?;
++    let count = usize::try_from(u64_at(&map, 5)?).map_err(|_| malformed("segment count"))?;
+     if count > (total - FIXED_HEADER) / DESCRIPTOR_LEN {
+         return Err(malformed("segment count too large"));
+     }
+@@ -245,7 +253,7 @@
+     if total < header_len + TAG_LEN {
+         return Err(malformed("truncated"));
+     }
+-    let ct_len = u64_at(&map, aad_len);
++    let ct_len = u64_at(&map, aad_len)?;
+     if ct_len != (total - header_len - TAG_LEN) as u64 {
+         return Err(malformed("ciphertext length mismatch"));
+     }
+@@ -253,14 +261,14 @@
+     let (mut compressed_sum, mut uncompressed_sum) = (0u64, 0u64);
+     for i in 0..count {
+         let at = FIXED_HEADER + i * DESCRIPTOR_LEN;
+-        let (c, u) = (u64_at(&map, at), u64_at(&map, at + 8));
++        let (c, u) = (u64_at(&map, at)?, u64_at(&map, at + 8)?);
+         compressed_sum = compressed_sum
+             .checked_add(c)
+             .ok_or_else(|| malformed("size overflow"))?;
+         uncompressed_sum = uncompressed_sum
+             .checked_add(u)
+             .ok_or_else(|| malformed("size overflow"))?;
+-        frames.push((c as usize, u));
++        frames.push((usize::try_from(c).map_err(|_| malformed("frame size"))?, u));
+     }
+     if compressed_sum != ct_len {
+         return Err(malformed("frame sizes do not match ciphertext length"));
+@@ -273,7 +281,11 @@
+     }
+ 
+     let aad = map[..aad_len].to_vec();
+-    let tag: [u8; 16] = map[total - TAG_LEN..].try_into().expect("16 bytes");
++    let mut tag = [0u8; TAG_LEN];
++    tag.copy_from_slice(
++        map.get(total - TAG_LEN..)
++            .ok_or_else(|| malformed("truncated authentication tag"))?,
++    );
+     let ct_end = total - TAG_LEN;
+     let plan = SegmentationStrategy::default()
+         .plan(ct_end - header_len)
+@@ -313,7 +325,10 @@
+                 .map_err(|e| ObjectError::internal("zstd init", e))?
+                 .single_frame();
+             // Read at most one byte past the declared size to detect overlong frames.
+-            let written = io::copy(&mut io::Read::take(&mut dec, declared + 1), &mut out)
++            let read_limit = declared
++                .checked_add(1)
++                .ok_or_else(|| malformed("declared frame size overflow"))?;
++            let written = io::copy(&mut io::Read::take(&mut dec, read_limit), &mut out)
+                 .map_err(|_| ObjectError::new(422, "corrupt compressed payload"))?;
+             if written != declared {
+                 return Err(ObjectError::new(
+diff -ruN '--exclude=secrets' '--exclude=target' '--exclude=.git' '--exclude=.idea' /mnt/data/todo_original/crates/rest/src/lib.rs /mnt/data/todo_work/todo/crates/rest/src/lib.rs
+--- /mnt/data/todo_original/crates/rest/src/lib.rs	2026-10-14 08:16:36.000000000 +0000
++++ /mnt/data/todo_work/todo/crates/rest/src/lib.rs	2026-10-19 02:45:49.305378013 +0000
+@@ -16,6 +16,7 @@
+ use serde::{Deserialize, Serialize};
+ use std::fmt;
+ use std::sync::Arc;
++use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+ use todo_crypto::{
+     CryptoError, TagEquivalenceReport, assert_aes_gcm_siv_equivalence, assert_polyval_equivalence,
+ };
+@@ -36,6 +37,8 @@
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ pub enum RestError {
+     BadRequest(String),
++    /// Admission control rejected expensive work before it entered Rayon/spawn_blocking.
++    Busy(&'static str),
+     Pipeline(PipelineError),
+     Crypto(CryptoError),
+     Storage(IpfsError),
+@@ -46,6 +49,7 @@
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         match self {
+             Self::BadRequest(e) => write!(f, "bad request: {e}"),
++            Self::Busy(e) => write!(f, "service busy: {e}"),
+             Self::Pipeline(e) => write!(f, "{e}"),
+             Self::Crypto(e) => write!(f, "{e}"),
+             Self::Storage(e) => write!(f, "storage error: {e}"),
+@@ -215,10 +219,15 @@
+         .map_err(|e| RestError::Internal(e.to_string()))
+ }
+ 
++/// Research pipeline calls can each fan out across the Rayon pool. Keep only one admitted
++/// job by default to avoid CPU oversubscription; object transfers have a separate limit.
++pub const DEFAULT_MAX_CONCURRENT_COMPUTE_JOBS: usize = 1;
++
+ #[derive(Clone)]
+ pub struct RestServiceController {
+     ipfs: Arc<ObjectStore<IpfsBackend>>,
+     upload: Option<Arc<UploadConfig>>,
++    compute_permits: Arc<Semaphore>,
+ }
+ 
+ impl Default for RestServiceController {
+@@ -237,6 +246,7 @@
+         Self {
+             ipfs: Arc::new(ObjectStore::new(backend)),
+             upload: None,
++            compute_permits: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_COMPUTE_JOBS)),
+         }
+     }
+ 
+@@ -257,17 +267,26 @@
+         Ok(controller)
+     }
+ 
++    /// Non-blocking admission for CPU-heavy research endpoints. Rejecting early keeps
++    /// authenticated bursts from building an unbounded spawn_blocking/Rayon backlog.
++    pub(crate) fn try_compute_permit(&self) -> Result<OwnedSemaphorePermit, RestError> {
++        Arc::clone(&self.compute_permits)
++            .try_acquire_owned()
++            .map_err(|_| RestError::Busy("too many concurrent compute jobs"))
++    }
++
+     pub fn upload_config(&self) -> Option<&UploadConfig> {
+         self.upload.as_deref()
+     }
+ 
+-    /// Fail closed: the object routes decrypt with the server key, so without
+-    /// `TODO_API_TOKEN` they may only be served on a loopback address.
++    /// Fail closed: object routes decrypt with the server key and the research API can
++    /// consume substantial CPU/storage, so without `TODO_API_TOKEN` the service may only
++    /// be served on a loopback address.
+     pub fn check_exposure(&self, addr: std::net::SocketAddr) -> Result<(), RestError> {
+         match self.upload_config() {
+             Some(cfg) if !cfg.requires_token() && !addr.ip().is_loopback() => {
+                 Err(RestError::BadRequest(format!(
+-                    "refusing to serve the object routes on non-loopback {addr} without \
++                    "refusing to serve protected routes on non-loopback {addr} without \
+ TODO_API_TOKEN (set a token or bind to 127.0.0.1/::1)"
+                 )))
+             }
+diff -ruN '--exclude=secrets' '--exclude=target' '--exclude=.git' '--exclude=.idea' /mnt/data/todo_original/crates/rest/src/main.rs /mnt/data/todo_work/todo/crates/rest/src/main.rs
+--- /mnt/data/todo_original/crates/rest/src/main.rs	2026-10-15 03:46:57.000000000 +0000
++++ /mnt/data/todo_work/todo/crates/rest/src/main.rs	2026-10-19 02:41:32.862299088 +0000
+@@ -70,7 +70,7 @@
+ 
+ #[tokio::main]
+ async fn main() -> Result<(), BoxError> {
+-    let _ = todo_database::config::init_config_env();
++    todo_database::config::init_config_env()?;
+     let args: Vec<String> = env::args().skip(1).collect();
+     match args.first().map(String::as_str) {
+         None | Some("serve") => {}
+diff -ruN '--exclude=secrets' '--exclude=target' '--exclude=.git' '--exclude=.idea' /mnt/data/todo_original/crates/rest/src/server.rs /mnt/data/todo_work/todo/crates/rest/src/server.rs
+--- /mnt/data/todo_original/crates/rest/src/server.rs	2026-10-14 07:25:37.000000000 +0000
++++ /mnt/data/todo_work/todo/crates/rest/src/server.rs	2026-10-19 02:45:49.305636352 +0000
+@@ -13,10 +13,12 @@
+ use serde::{Deserialize, Serialize};
+ use serde_json::{Value, json};
+ use std::sync::Arc;
++use std::time::Duration;
+ use todo_ipfs::IpfsError;
+ use todo_zstd::{PipelineError, SealedStream};
+ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+ use tokio::net::TcpListener;
++use tokio::sync::Semaphore;
+ use zeroize::Zeroizing;
+ 
+ #[derive(Debug, Serialize, Deserialize)]
+@@ -183,11 +185,16 @@
+     controller: Arc<RestServiceController>,
+     tls: Option<TlsAcceptor>,
+ ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
++    let connections = Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_CONNECTIONS));
+     loop {
++        // Acquire before accept so the number of live connection tasks is bounded. Excess
++        // clients remain in the kernel listen backlog instead of allocating Tokio tasks.
++        let permit = Arc::clone(&connections).acquire_owned().await?;
+         let (socket, _) = listener.accept().await?;
+         let controller = Arc::clone(&controller);
+         let tls = tls.clone();
+         tokio::spawn(async move {
++            let _permit = permit;
+             let result = match tls {
+                 None => handle_connection(socket, controller).await,
+                 Some(acceptor) => {
+@@ -206,6 +213,7 @@
+ 
+ pub fn status_of(err: &RestError) -> u16 {
+     match err {
++        RestError::Busy(_) => 429,
+         RestError::BadRequest(_)
+         | RestError::Crypto(_)
+         | RestError::Pipeline(PipelineError::Crypto(_))
+@@ -385,12 +393,28 @@
+     if !API_ROUTES.contains(&(method, path)) {
+         return (404, json!({ "error": "route not found" }));
+     }
++    let _compute_permit = if api_route_requires_compute(method, path) {
++        match controller.try_compute_permit() {
++            Ok(permit) => Some(permit),
++            Err(e) => return (status_of(&e), json!({ "error": e.to_string() })),
++        }
++    } else {
++        None
++    };
+     match route(method, path, body, controller).await {
+         Ok(v) => (200, v),
+         Err(e) => (status_of(&e), json!({ "error": e.to_string() })),
+     }
+ }
+ 
++/// Upper bound on concurrently accepted connections. This bounds socket/task memory even
++/// when clients connect and then stop sending bytes.
++pub const DEFAULT_MAX_CONCURRENT_CONNECTIONS: usize = 256;
++/// Whole-request deadline for receiving HTTP headers (slowloris protection).
++pub const HEADER_READ_TIMEOUT: Duration = Duration::from_secs(10);
++/// Whole-request deadline for receiving a buffered JSON body. Object uploads have their own
++/// streaming idle timeout and do not use this value.
++pub const JSON_BODY_READ_TIMEOUT: Duration = Duration::from_secs(30);
+ /// Upper bound on request headers.
+ pub const MAX_HEADER_BYTES: usize = 16 * 1024;
+ /// Upper bound on JSON request bodies (the upload route streams to disk instead).
+@@ -400,46 +424,89 @@
+     buf.windows(4).position(|w| w == b"\r\n\r\n")
+ }
+ 
++/// Public discovery endpoints remain unauthenticated. All CPU/storage-affecting REST API
++/// routes require the same bearer token as object transfer routes when a token is configured.
++fn api_route_requires_auth(method: &str, path: &str) -> bool {
++    API_ROUTES.contains(&(method, path))
++        && !matches!(
++            (method, path),
++            ("GET", "/api/v1/health") | ("GET", "/api/v1/crypto-modes")
++        )
++}
++
++fn api_route_requires_compute(method: &str, path: &str) -> bool {
++    api_route_requires_auth(method, path)
++}
++
+ async fn handle_connection<S: AsyncRead + AsyncWrite + Unpin>(
+     mut stream: S,
+     controller: Arc<RestServiceController>,
+ ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+     let mut buffer = Vec::with_capacity(8192);
+     let mut chunk = vec![0u8; 65536];
++    let header_deadline = tokio::time::Instant::now() + HEADER_READ_TIMEOUT;
+     let header_end = loop {
+         if let Some(pos) = find_header_end(&buffer) {
++            if pos + 4 > MAX_HEADER_BYTES {
++                return write_json(&mut stream, 431, &json!({ "error": "headers too large" })).await;
++            }
+             break pos;
+         }
+-        if buffer.len() > MAX_HEADER_BYTES {
++        if buffer.len() >= MAX_HEADER_BYTES {
+             return write_json(&mut stream, 431, &json!({ "error": "headers too large" })).await;
+         }
+-        let n = stream.read(&mut chunk).await?;
++        let n = match tokio::time::timeout_at(header_deadline, stream.read(&mut chunk)).await {
++            Ok(read) => read?,
++            Err(_) => {
++                return write_json(&mut stream, 408, &json!({ "error": "request header timeout" }))
++                    .await;
++            }
++        };
+         if n == 0 {
+             return Ok(());
+         }
+         buffer.extend_from_slice(&chunk[..n]);
+     };
+ 
+-    let head = String::from_utf8_lossy(&buffer[..header_end]).into_owned();
++    let head = match std::str::from_utf8(&buffer[..header_end]) {
++        Ok(head) => head,
++        Err(_) => return write_json(&mut stream, 400, &json!({ "error": "invalid header" })).await,
++    };
+     let mut lines = head.split("\r\n");
+     let mut parts = lines.next().unwrap_or("").split_whitespace();
+-    let method = parts.next().unwrap_or("GET").to_string();
+-    let path = parts.next().unwrap_or("/").to_string();
++    let (Some(method), Some(path), Some(version)) = (parts.next(), parts.next(), parts.next()) else {
++        return write_json(&mut stream, 400, &json!({ "error": "malformed request line" })).await;
++    };
++    if parts.next().is_some() || !version.starts_with("HTTP/1.") || !path.starts_with('/') {
++        return write_json(&mut stream, 400, &json!({ "error": "unsupported request" })).await;
++    }
++    let method = method.to_string();
++    let path = path.to_string();
+ 
+     let mut headers = UploadHeaders::default();
+     for line in lines {
+         let Some((name, value)) = line.split_once(':') else {
+-            continue;
++            return write_json(&mut stream, 400, &json!({ "error": "malformed header" })).await;
+         };
+         let value = value.trim();
+         match name.trim().to_ascii_lowercase().as_str() {
+-            "content-length" => match value.parse() {
+-                Ok(n) => headers.content_length = Some(n),
+-                Err(_) => {
+-                    let body = json!({ "error": "invalid Content-Length" });
+-                    return write_json(&mut stream, 400, &body).await;
++            "content-length" => {
++                if headers.content_length.is_some() {
++                    return write_json(
++                        &mut stream,
++                        400,
++                        &json!({ "error": "duplicate Content-Length" }),
++                    )
++                    .await;
+                 }
+-            },
++                match value.parse() {
++                    Ok(n) => headers.content_length = Some(n),
++                    Err(_) => {
++                        let body = json!({ "error": "invalid Content-Length" });
++                        return write_json(&mut stream, 400, &body).await;
++                    }
++                }
++            }
+             "transfer-encoding" => headers.chunked = true,
+             "content-type" => headers.content_type = Some(value.to_string()),
+             "x-object-id" => headers.object_id = Some(value.to_string()),
+@@ -457,6 +524,14 @@
+         stream.write_all(response.as_bytes()).await?;
+         return Ok(());
+     }
++    if headers.chunked {
++        return write_json(
++            &mut stream,
++            411,
++            &json!({ "error": "Transfer-Encoding is not supported; send Content-Length" }),
++        )
++        .await;
++    }
+ 
+     if method == "GET" && download::parse_target(&path).is_some() {
+         let auth = headers.authorization.as_deref().map(String::as_str);
+@@ -487,6 +562,40 @@
+         return write_json(&mut stream, status, &body).await;
+     }
+ 
++    if method == "POST" && API_ROUTES.contains(&(method.as_str(), path.as_str())) {
++        if headers.content_length.is_none() {
++            return write_json(&mut stream, 411, &json!({ "error": "Content-Length required" }))
++                .await;
++        }
++        let is_json = headers
++            .content_type
++            .as_deref()
++            .and_then(|ct| ct.split(';').next())
++            .is_some_and(|ct| ct.trim().eq_ignore_ascii_case("application/json"));
++        if !is_json {
++            return write_json(
++                &mut stream,
++                415,
++                &json!({ "error": "Content-Type must be application/json" }),
++            )
++            .await;
++        }
++    }
++
++    if api_route_requires_auth(&method, &path)
++        && let Some(cfg) = controller.upload_config()
++    {
++        let auth = headers.authorization.as_deref().map(String::as_str);
++        if let Err(e) = cfg.authorize(auth) {
++            return write_json(
++                &mut stream,
++                e.status,
++                &json!({ "status": "error", "error": e.message }),
++            )
++            .await;
++        }
++    }
++
+     let len = usize::try_from(headers.content_length.unwrap_or(0)).unwrap_or(usize::MAX);
+     if len > MAX_JSON_BODY_BYTES {
+         return write_json(
+@@ -497,11 +606,19 @@
+         .await;
+     }
+     let mut body = prefix[..prefix.len().min(len)].to_vec();
++    let body_deadline = tokio::time::Instant::now() + JSON_BODY_READ_TIMEOUT;
+     while body.len() < len {
+         let want = (len - body.len()).min(chunk.len());
+-        let n = stream.read(&mut chunk[..want]).await?;
++        let n = match tokio::time::timeout_at(body_deadline, stream.read(&mut chunk[..want])).await {
++            Ok(read) => read?,
++            Err(_) => {
++                return write_json(&mut stream, 408, &json!({ "error": "request body timeout" }))
++                    .await;
++            }
++        };
+         if n == 0 {
+-            return Ok(());
++            return write_json(&mut stream, 400, &json!({ "error": "truncated request body" }))
++                .await;
+         }
+         body.extend_from_slice(&chunk[..n]);
+     }
+@@ -599,4 +716,17 @@
+         let e = RestError::Pipeline(PipelineError::Crypto(CryptoError::AuthenticationFailed));
+         assert_eq!(status_of(&e), 400);
+     }
++
++    #[test]
++    fn only_safe_discovery_routes_are_public() {
++        assert!(!api_route_requires_auth("GET", "/api/v1/health"));
++        assert!(!api_route_requires_auth("GET", "/api/v1/crypto-modes"));
++        assert!(api_route_requires_auth("GET", "/api/v1/benchmark"));
++        assert!(api_route_requires_auth("POST", "/api/v1/pipeline/process"));
++        assert!(api_route_requires_auth("POST", "/api/v1/ipfs/publish"));
++        assert!(!api_route_requires_auth("GET", "/not-an-api-route"));
++        assert!(!api_route_requires_compute("GET", "/api/v1/health"));
++        assert!(api_route_requires_compute("GET", "/api/v1/benchmark"));
++        assert!(api_route_requires_compute("POST", "/api/v1/pipeline/verify"));
++    }
+ }
+diff -ruN '--exclude=secrets' '--exclude=target' '--exclude=.git' '--exclude=.idea' /mnt/data/todo_original/crates/web/src/main.rs /mnt/data/todo_work/todo/crates/web/src/main.rs
+--- /mnt/data/todo_original/crates/web/src/main.rs	2026-10-15 02:02:08.000000000 +0000
++++ /mnt/data/todo_work/todo/crates/web/src/main.rs	2026-10-19 02:41:32.862517100 +0000
+@@ -40,7 +40,7 @@
+ 
+ #[tokio::main]
+ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+-    let _ = todo_database::config::init_config_env();
++    todo_database::config::init_config_env()?;
+     let host = env::var("WEB_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+     let port = env::var("WEB_PORT")
+         .ok()
+diff -ruN '--exclude=secrets' '--exclude=target' '--exclude=.git' '--exclude=.idea' /mnt/data/todo_original/crates/web/src/server.rs /mnt/data/todo_work/todo/crates/web/src/server.rs
+--- /mnt/data/todo_original/crates/web/src/server.rs	2026-10-15 06:45:12.000000000 +0000
++++ /mnt/data/todo_work/todo/crates/web/src/server.rs	2026-10-19 02:43:38.386308451 +0000
+@@ -7,8 +7,9 @@
+ //! page cannot trigger API calls with a simple cross-site form post. Exception:
+ //! `POST /api/v1/objects/upload` takes a raw `application/octet-stream` body (same-origin
+ //! check still applies) that is streamed to disk by `todo_rest::upload` instead of being
+-//! buffered. Only the object routes are access-controlled (`TODO_API_TOKEN`); bind to
+-//! loopback or put the console behind an authenticating proxy.
++//! buffered. Production API work is access-controlled: object routes accept a verified
++//! session or `TODO_API_TOKEN`; CPU/storage-affecting console APIs require a session. Only
++//! health and crypto-mode discovery remain public.
+ //!
+ //! Accounts (optional, [`WebApp::with_auth`]): `POST /api/v1/auth/login`, `POST
+ //! /api/v1/auth/logout`, `GET /api/v1/auth/me` and the `/account` page. A login sets an
+@@ -45,6 +46,7 @@
+ use todo_rest::{ObjectError, RestServiceController, UPLOAD_ROUTE, UploadHeaders, UploadReceipt};
+ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+ use tokio::net::TcpListener;
++use tokio::sync::Semaphore;
+ use zeroize::Zeroizing;
+ 
+ use crate::pages;
+@@ -52,6 +54,8 @@
+ /// Maximum request body (a 4 MiB input hex-encoded plus JSON framing).
+ pub const MAX_BODY_BYTES: usize = 12 * 1024 * 1024;
+ pub const MAX_HEADER_BYTES: usize = 16 * 1024;
++/// Bound live socket tasks so stalled clients cannot grow memory without limit.
++pub const DEFAULT_MAX_CONCURRENT_CONNECTIONS: usize = 256;
+ const READ_TIMEOUT: Duration = Duration::from_secs(30);
+ /// Sent on HTTPS responses only (RFC 6797: ignored over plain HTTP anyway).
+ const HSTS: &str = "Strict-Transport-Security: max-age=31536000\r\n";
+@@ -458,15 +462,75 @@
+                 }
+                 Response::json(200, receipt.json)
+             }
+-            Err(e) => {
+-                // The ciphertext is already in IPFS; without a row it is unreachable for
+-                // this user (it stays encrypted). Report instead of pretending success.
+-                eprintln!("catalog: record {}: {e}", row.root_cid);
++            Err(CatalogError::Duplicate) => {
++                // Root CIDs are globally unique in the catalog. Do not unpin on a duplicate: the
++                // existing row may belong to another owner and still depends on this root.
+                 Response::json(
+-                    503,
+-                    json!({ "status": "error", "error": "metadata store unavailable; object not recorded" }),
++                    409,
++                    json!({ "status": "error", "error": "object root already recorded" }),
+                 )
+             }
++            Err(record_error) => {
++                // A database/network error can be ambiguous: the INSERT may have committed even
++                // when its response was lost. Re-read before compensating so we never unpin an
++                // object that is already referenced by this owner's catalog row.
++                match catalog.find(owner_id, &row.root_cid).await {
++                    Ok(Some(existing)) if existing.object.object_id == row.object_id => {
++                        if let Some(o) = receipt.json.as_object_mut() {
++                            o.insert("metadata_id".into(), json!(existing.id));
++                            o.insert("metadata_store".into(), json!(catalog.kind()));
++                            o.insert("metadata_reconciled".into(), json!(true));
++                        }
++                        Response::json(200, receipt.json)
++                    }
++                    Ok(Some(_)) => {
++                        eprintln!(
++                            "catalog: root {} already belongs to different metadata",
++                            row.root_cid
++                        );
++                        Response::json(
++                            409,
++                            json!({ "status": "error", "error": "object root already recorded" }),
++                        )
++                    }
++                    Ok(None) => {
++                        // The catalog definitively has no row on this primary read. Remove the
++                        // recursive pin so the failed transaction does not leak durable storage.
++                        if let Err(unpin_error) = self
++                            .controller
++                            .ipfs_store()
++                            .unpin_object(&receipt.root)
++                            .await
++                        {
++                            eprintln!(
++                                "catalog: record {} failed ({record_error}); rollback unpin failed: {unpin_error}",
++                                row.root_cid
++                            );
++                        } else {
++                            eprintln!(
++                                "catalog: record {} failed ({record_error}); IPFS pin rolled back",
++                                row.root_cid
++                            );
++                        }
++                        Response::json(
++                            503,
++                            json!({ "status": "error", "error": "metadata store unavailable; object transaction rolled back" }),
++                        )
++                    }
++                    Err(reconcile_error) => {
++                        // Unknown commit state: fail closed and keep the pin. A later reconciler can
++                        // safely decide whether it is orphaned; deleting here could lose committed data.
++                        eprintln!(
++                            "catalog: record {} failed ({record_error}); reconciliation failed: {reconcile_error}; pin retained",
++                            row.root_cid
++                        );
++                        Response::json(
++                            503,
++                            json!({ "status": "error", "error": "metadata store unavailable; commit state requires reconciliation" }),
++                        )
++                    }
++                }
++            }
+         }
+     }
+ 
+@@ -716,6 +780,16 @@
+         if req.path == VAULT_OBJECTS_ROUTE {
+             return self.list_objects(req).await;
+         }
++        let public_discovery = matches!(
++            (req.method.as_str(), req.path.as_str()),
++            ("GET", "/api/v1/health") | ("GET", "/api/v1/crypto-modes")
++        );
++        if self.auth_enabled() && !public_discovery && self.session(req).await.is_none() {
++            return Response::json(
++                401,
++                json!({ "status": "error", "error": "login required" }),
++            );
++        }
+         let Ok(body) = std::str::from_utf8(&req.body) else {
+             return Response::error(400, "body must be UTF-8 JSON");
+         };
+@@ -980,7 +1054,7 @@
+     authority.is_some_and(|a| a.eq_ignore_ascii_case(host))
+ }
+ 
+-/// Accept plain-HTTP connections forever, one task per connection.
++/// Accept plain-HTTP connections forever with a bounded number of live tasks.
+ pub async fn serve(listener: TcpListener, app: Arc<WebApp>) -> std::io::Result<()> {
+     serve_with(listener, app, None).await
+ }
+@@ -992,12 +1066,18 @@
+     app: Arc<WebApp>,
+     tls: Option<TlsAcceptor>,
+ ) -> std::io::Result<()> {
++    let connections = Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_CONNECTIONS));
+     loop {
++        let permit = match Arc::clone(&connections).acquire_owned().await {
++            Ok(permit) => permit,
++            Err(_) => return Ok(()),
++        };
+         let (stream, peer) = listener.accept().await?;
+         let app = Arc::clone(&app);
+         let tls = tls.clone();
+         let peer = Some(peer.ip());
+         tokio::spawn(async move {
++            let _permit = permit;
+             match tls {
+                 None => {
+                     let _ = handle_connection(stream, app, "", peer).await;
+@@ -1124,9 +1204,15 @@
+     let mut chunk = [0u8; 8192];
+     let header_end = loop {
+         if let Some(pos) = find_header_end(&buf) {
++            if pos + 4 > MAX_HEADER_BYTES {
++                return Err(ReadError::Respond(Response::error(
++                    431,
++                    "request headers too large",
++                )));
++            }
+             break pos;
+         }
+-        if buf.len() > MAX_HEADER_BYTES {
++        if buf.len() >= MAX_HEADER_BYTES {
+             return Err(ReadError::Respond(Response::error(
+                 431,
+                 "request headers too large",
+@@ -1170,6 +1256,9 @@
+         let value = value.trim();
+         match name.trim().to_ascii_lowercase().as_str() {
+             "content-length" => {
++                if upload.content_length.is_some() {
++                    return Err(bad("duplicate Content-Length"));
++                }
+                 let n: u64 = value.parse().map_err(|_| bad("invalid Content-Length"))?;
+                 upload.content_length = Some(n);
+                 content_length = usize::try_from(n).unwrap_or(usize::MAX);
+@@ -1248,6 +1337,7 @@
+         404 => "Not Found",
+         405 => "Method Not Allowed",
+         408 => "Request Timeout",
++        409 => "Conflict",
+         411 => "Length Required",
+         413 => "Payload Too Large",
+         415 => "Unsupported Media Type",
+diff -ruN '--exclude=secrets' '--exclude=target' '--exclude=.git' '--exclude=.idea' /mnt/data/todo_original/references/PRODUCTION_HARDENING.md /mnt/data/todo_work/todo/references/PRODUCTION_HARDENING.md
+--- /mnt/data/todo_original/references/PRODUCTION_HARDENING.md	1970-01-01 00:00:00.000000000 +0000
++++ /mnt/data/todo_work/todo/references/PRODUCTION_HARDENING.md	2026-10-19 02:45:49.305691974 +0000
+@@ -0,0 +1,42 @@
++# Production hardening baseline
++
++This repository keeps the thesis primitive unchanged: one AES-GCM-SIV message over the
++Zstandard-compressed byte stream, with RFC 8452 POLYVAL semantics. Production hardening must not
++silently turn Zstd frame boundaries or POLYVAL execution segments into independent AEAD messages.
++
++## Security invariants
++
++- Configuration loading is fail-closed. Invalid config/secret permissions abort startup.
++- Direct REST CPU/storage routes require the configured bearer token; only health and crypto-mode
++  discovery are public. The web console requires a valid session for non-discovery API work.
++- Accepted connection tasks are bounded and request headers/buffered JSON bodies have deadlines.
++- CPU-heavy research endpoints use a global non-blocking admission gate before Rayon/spawn_blocking.
++- Duplicate `Content-Length`, unsupported `Transfer-Encoding`, oversized headers and malformed
++  sealed-stream integer fields fail before expensive work.
++- Object plaintext is released only after AES-GCM-SIV authentication succeeds.
++- IPFS blocks are verified by CID before use. Repair writes only bytes that hash to the canonical
++  CID, so physical replica repair does not create a new logical object/root.
++- A catalog write failure is reconciled before IPFS compensation. Ambiguous state keeps the pin;
++  a confirmed absent metadata row is rolled back by unpinning the newly published object.
++- Live secrets must not be tracked by Git; `scripts/check_workspace.sh` enforces this when run in a
++  Git worktree.
++
++## POLYVAL execution
++
++The production/thesis path uses a fused ordered divide-and-conquer reducer. It hashes small runs of
++adjacent segments at tree leaves and combines `left.combine(right)` in stream order. This preserves
++RFC 8452 output while avoiding the primary path's previous `Vec<PolyvalPart>` allocation proportional
++to segment count. The old parallel-local + linear reducer remains as a benchmark baseline.
++
++## Release gate
++
++Use the pinned `rust-toolchain.toml` and committed `Cargo.lock`:
++
++```bash
++bash scripts/check_workspace.sh --root . --mode release
++cargo audit
++```
++
++A production release must also exercise live Kubo/database integration in the deployment environment,
++including interrupted upload, backend outage, catalog failure/reconciliation, corrupted block/tag,
++large-object limits, and concurrent-client saturation.
+diff -ruN '--exclude=secrets' '--exclude=target' '--exclude=.git' '--exclude=.idea' /mnt/data/todo_original/rust-toolchain.toml /mnt/data/todo_work/todo/rust-toolchain.toml
+--- /mnt/data/todo_original/rust-toolchain.toml	1970-01-01 00:00:00.000000000 +0000
++++ /mnt/data/todo_work/todo/rust-toolchain.toml	2026-10-19 02:44:48.083960540 +0000
+@@ -0,0 +1,4 @@
++[toolchain]
++channel = "1.99.1"
++profile = "minimal"
++components = ["rustfmt", "clippy"]
+diff -ruN '--exclude=secrets' '--exclude=target' '--exclude=.git' '--exclude=.idea' /mnt/data/todo_original/scripts/check_workspace.sh /mnt/data/todo_work/todo/scripts/check_workspace.sh
+--- /mnt/data/todo_original/scripts/check_workspace.sh	2026-10-12 01:46:36.000000000 +0000
++++ /mnt/data/todo_work/todo/scripts/check_workspace.sh	2026-10-19 02:44:48.629720642 +0000
+@@ -28,6 +28,13 @@
+ if [[ -f "$ROOT/Cargo.lock" ]]; then
+   if command -v sha256sum >/dev/null 2>&1; then sha256sum "$ROOT/Cargo.lock"; fi
+ else printf 'WARN: Cargo.lock missing (do not regenerate without review).\n'; fi
++if command -v git >/dev/null 2>&1 && git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
++  tracked_secrets="$(git -C "$ROOT" ls-files -- 'secrets/**' '.env' '.env.*' | grep -vE '(^|/)([^/]*\.)?env\.example$' || true)"
++  if [[ -n "$tracked_secrets" ]]; then
++    printf 'ERROR: secret-bearing paths are tracked by Git:\n%s\n' "$tracked_secrets" >&2
++    exit 2
++  fi
++fi
+ missing=0
+ for p in crates/crypto crates/zstd crates/ipfs crates/web crates/rest; do
+   if [[ ! -f "$ROOT/$p/Cargo.toml" ]]; then
+@@ -49,12 +56,12 @@
+ cd "$ROOT"
+ commands=(
+   'cargo fmt --all -- --check'
+-  'cargo check --workspace --all-targets'
+-  'cargo clippy --workspace --all-targets -- -D warnings'
+-  'cargo test --workspace'
++  'cargo check --workspace --all-targets --locked'
++  'cargo clippy --workspace --all-targets --locked -- -D warnings'
++  'cargo test --workspace --locked'
+ )
+ if [[ "$MODE" == release ]]; then
+-  commands+=( 'cargo test --workspace --release' 'cargo build --release' )
++  commands+=( 'cargo test --workspace --release --locked' 'cargo build --workspace --release --locked' )
+ fi
+ for line in "${commands[@]}"; do
+   printf '\nRUN: %s\n' "$line"

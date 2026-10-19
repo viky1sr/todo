@@ -1,0 +1,5 @@
+/target
+# Local configuration and secrets (see config/*.toml, scripts/gen_secrets.sh)
+.env
+*.env
+/secrets/

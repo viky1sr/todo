@@ -118,9 +118,7 @@ pub fn assert_aes_gcm_siv_equivalence(
     validate_segment_size(segment_size)?;
     let (seq, seq_t) = timed(|| aes_gcm_siv_encrypt_sequential(key, nonce, aad, plaintext));
     let (par, par_t) =
-        timed(|| {
-            aes_gcm_siv_encrypt_polyval_parallel(key, nonce, aad, plaintext, segment_size)
-        });
+        timed(|| aes_gcm_siv_encrypt_polyval_parallel(key, nonce, aad, plaintext, segment_size));
     let (up, up_t) = timed(|| aes_gcm_siv_encrypt_upstream(key, nonce, aad, plaintext));
     let (seq, par, up) = (seq?, par?, up?);
 

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Tidak ditemukan{% endblock %}
+{% block eyebrow %}Galat 404{% endblock %}
+{% block heading %}Halaman tidak ditemukan{% endblock %}
+{% block content %}
+<section class="card glass empty-state big">
+  <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M18 44a10 10 0 0 1 1-20 14 14 0 0 1 27 4 8 8 0 0 1-1 16z" fill="currentColor" opacity=".3"/><path d="M27 31l10 10m0-10L27 41" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+  <h2>Awan kosong di sini</h2>
+  <p class="muted">Tidak ada halaman di <code>{{ path }}</code>.</p>
+  <a class="btn btn-primary" href="/">Kembali ke dasbor</a>
+</section>
+{% endblock %}

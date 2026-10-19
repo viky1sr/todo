@@ -1,0 +1,26 @@
+# todo configuration: app (web/REST, TLS, object keys, upload limits).
+# Loaded from TODO_CONFIG_TOML_DIR (default ./config). Every key can be overridden by the
+# environment variable shown on the right. NEVER put secret values here: only *_file
+# paths to owner-only files (chmod 400/600), e.g. Docker secrets in /run/secrets.
+# This file must not be writable by group/others. Check: cargo run -- --check-config
+
+environment = "production"            # TODO_ENV (production: env secret values refused)
+
+[web]
+host = "127.0.0.1"                    # WEB_HOST
+port = 8000                           # WEB_PORT
+
+[rest]
+host = "127.0.0.1"                    # REST_HOST
+port = 8001                           # REST_PORT; 8080 is reserved for Kubo's loopback gateway
+
+[upload]
+key_hex_file = "secrets/upload_key_hex"   # TODO_UPLOAD_KEY_HEX_FILE (32/64 hex)
+api_token_file = "secrets/api_token"      # TODO_API_TOKEN_FILE
+max_bytes = 536870912                     # TODO_UPLOAD_MAX_BYTES
+max_concurrent = 2                        # TODO_UPLOAD_MAX_CONCURRENT
+zstd_level = 3                            # TODO_UPLOAD_ZSTD_LEVEL
+temp_dir = "/tmp/todo"                    # TODO_UPLOAD_TMPDIR (created on first upload when absent)
+
+[pii]
+key_hex_file = "secrets/pii_key_hex"      # TODO_PII_KEY_HEX_FILE (64 hex, != upload key)

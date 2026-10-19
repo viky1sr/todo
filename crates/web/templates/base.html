@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="RuKubo Console: node IPFS private untuk objek terenkripsi">
+  <title>{% block title %}Konsol Operasional{% endblock %} · RuKubo</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/app.css?v={{ shell.version }}">
+  <script src="/static/theme.js?v={{ shell.version }}"></script>
+  <script src="/static/app.js?v={{ shell.version }}" defer></script>
+</head>
+<body data-page="{{ shell.active }}" data-backend="{{ shell.backend_kind }}">
+  <a class="skip-link" href="#main">Lewati ke konten utama</a>
+  <div class="layout{% if shell.active == "login" %} layout-auth{% endif %}">
+    {% if shell.active != "login" %}
+    <aside class="sidebar" id="sidebar" aria-label="Navigasi utama">
+      <a class="brand" href="/">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="32" height="32"><path d="M9 22a6 6 0 0 1 .6-12A8 8 0 0 1 25 12a5 5 0 0 1-1 10z" fill="currentColor" opacity=".9"/><rect x="13" y="15" width="8" height="7" rx="1.5" fill="#fff"/><path d="M14.5 15v-2a2.5 2.5 0 0 1 5 0v2" stroke="#fff" stroke-width="1.6" fill="none"/></svg>
+        </span>
+        <span class="brand-text"><strong>RuKubo Console</strong><small>Private IPFS · Encrypted Objects</small></span>
+      </a>
+
+      <nav class="nav" aria-label="Menu Utama">
+        <div class="nav-group">
+          <span class="nav-section-label">PRODUCTION · Private IPFS Node</span>
+          <a href="/production" class="nav-link"{% if shell.active == "status" || shell.active == "dashboard" %} aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4C7.03 4 3 8.03 3 13c0 2.22.81 4.25 2.16 5.82l1.42-1.42A7.95 7.95 0 0 1 5 13c0-3.87 3.13-7 7-7s7 3.13 7 7c0 1.62-.55 3.12-1.48 4.31l1.42 1.42A9.94 9.94 0 0 0 21 13c0-4.97-4.03-9-9-9zm0 5c-2.21 0-4 1.79-4 4 0 .7.18 1.35.5 1.92l3.21-3.21a.996.996 0 0 1 1.41 0c.39.39.39 1.02 0 1.41l-3.21 3.21c.57.32 1.22.5 1.92.5 2.21 0 4-1.79 4-4s-1.79-4-4-4z"/></svg>
+            <span>Node Overview</span>
+          </a>
+          <a href="/files" class="nav-link"{% if shell.active == "files" || shell.active == "vault" %} aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
+            <span>Objects</span>
+          </a>
+          <a href="/explore" class="nav-link"{% if shell.active == "explore" || shell.active == "storage" %} aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7zm0 2.3L18.6 8 12 11.7 5.4 8zM5 9.7l6 3.4v6.6l-6-3.3zm8 10v-6.6l6-3.4v6.7z"/></svg>
+            <span>CID Explorer</span>
+          </a>
+          <a href="/peers" class="nav-link"{% if shell.active == "peers" %} aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+            <span>Private Swarm</span>
+          </a>
+          <a href="/rukubo" class="nav-link"{% if shell.active == "rukubo" %} aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 6v6c0 5.1 3.4 8.9 8 10 4.6-1.1 8-4.9 8-10V6zm0 4a3 3 0 0 1 3 3v2h1v5H8v-5h1V9a3 3 0 0 1 3-3zm-1 5h2V9a1 1 0 0 0-2 0z"/></svg>
+            <span>Node Control <small>Admin</small></span>
+          </a>
+          <a href="/settings" class="nav-link"{% if shell.active == "settings" || shell.active == "account" %} aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            <span>Node Settings</span>
+          </a>
+        </div>
+
+        <div class="nav-group nav-subgroup">
+          <span class="nav-section-label">RESEARCH · Isolated Testbed</span>
+          <a href="/research" class="nav-link nav-sublink"{% if shell.active == "research" %} aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5zm-1 14-4-4 1.4-1.4L11 13.2l4.6-4.6L17 10z"/></svg>
+            <span>Research Overview</span>
+          </a>
+          <a href="/pipeline" class="nav-link nav-sublink"{% if shell.active == "pipeline" %} aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5zm-1 14-4-4 1.4-1.4L11 13.2l4.6-4.6L17 10z"/></svg>
+            <span>Pipeline AEAD</span>
+          </a>
+          <a href="/equivalence" class="nav-link nav-sublink"{% if shell.active == "equivalence" %} aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v2H4zm0 8h16v2H4zM9 3l-2 18h2l2-18zm6 0-2 18h2l2-18z"/></svg>
+            <span>Ekuivalensi POLYVAL</span>
+          </a>
+          <a href="/benchmark" class="nav-link nav-sublink"{% if shell.active == "benchmark" %} aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10h3v10zm6 0V4h3v16zm6 0v-7h3v7z"/></svg>
+            <span>Benchmark Rayon</span>
+          </a>
+          <a href="/diagnostics" class="nav-link nav-sublink"{% if shell.active == "diagnostics" %} aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5zm-1 14-4-4 1.4-1.4L11 13.2l4.6-4.6L17 10z"/></svg>
+            <span>Diagnostics</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-foot">
+        <span class="badge {% if shell.backend_live %}badge-live{% else %}badge-mock{% endif %}" title="Backend IPFS aktif">
+          <span class="dot" aria-hidden="true"></span>{{ shell.backend_label }}
+        </span>
+        <span class="muted small">Private LAN/Wi-Fi · Build <code>{{ shell.build_profile }}</code></span>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim" hidden></div>
+    {% endif %}
+
+    <div class="main-col{% if shell.active == "login" %} auth-col{% endif %}">
+      {% if shell.active != "login" %}
+      <header class="topbar">
+        <button class="icon-btn menu-btn" id="menu-btn" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Buka navigasi">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+        </button>
+        <div class="topbar-title">
+          <span class="eyebrow">{% block eyebrow %}Konsol Operasional Produksi{% endblock %}</span>
+          <h1>{% block heading %}SkyCipher{% endblock %}</h1>
+        </div>
+        <div class="topbar-actions">
+          <span class="pill" id="health-pill" data-state="loading" role="status">
+            <span class="dot" aria-hidden="true"></span><span class="pill-text">Memeriksa layanan…</span>
+          </span>
+          <button class="icon-btn" id="theme-btn" type="button" aria-label="Ganti tema terang/gelap">
+            <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0-5h0v3m0 14v3M4.2 4.2l2.1 2.1m11.4 11.4 2.1 2.1M2 12h3m14 0h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+            <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/></svg>
+          </button>
+        </div>
+      </header>
+      {% else %}
+      <header class="topbar topbar-auth">
+        <a class="brand brand-auth" href="/login">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" width="32" height="32"><path d="M9 22a6 6 0 0 1 .6-12A8 8 0 0 1 25 12a5 5 0 0 1-1 10z" fill="currentColor" opacity=".9"/><rect x="13" y="15" width="8" height="7" rx="1.5" fill="#fff"/><path d="M14.5 15v-2a2.5 2.5 0 0 1 5 0v2" stroke="#fff" stroke-width="1.6" fill="none"/></svg>
+          </span>
+          <span class="brand-text"><strong>RuKubo Console</strong><small>Private IPFS · Encrypted Objects</small></span>
+        </a>
+        <div class="topbar-actions">
+          <span class="badge {% if shell.backend_live %}badge-live{% else %}badge-mock{% endif %}" title="Backend IPFS aktif">
+            <span class="dot" aria-hidden="true"></span>{{ shell.backend_label }}
+          </span>
+          <button class="icon-btn" id="theme-btn" type="button" aria-label="Ganti tema terang/gelap">
+            <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0-5h0v3m0 14v3M4.2 4.2l2.1 2.1m11.4 11.4 2.1 2.1M2 12h3m14 0h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+            <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/></svg>
+          </button>
+        </div>
+      </header>
+      {% endif %}
+
+      <main id="main" class="content{% if shell.active == "login" %} auth-content{% endif %}" tabindex="-1">
+        {% block content %}{% endblock %}
+      </main>
+
+      <footer class="footer{% if shell.active == "login" %} footer-auth{% endif %}">
+        <span>Private-node console · satu pesan AEAD · satu tag · fail-closed.</span>
+        <span class="muted">Kubo API dan gateway tidak diekspos oleh web UI.</span>
+      </footer>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+</body>
+</html>

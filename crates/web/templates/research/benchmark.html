@@ -1,0 +1,47 @@
+{% extends "base.html" %}{# Research: benchmark #}
+{% block title %}Benchmark{% endblock %}
+{% block eyebrow %}POLYVAL sekuensial vs paralel (crypto-only){% endblock %}
+{% block heading %}Benchmark{% endblock %}
+{% block content %}
+<section class="card glass bench-intro">
+  <div>
+    <h3>Suite standar</h3>
+    <p class="muted">Mengukur POLYVAL sekuensial vs paralel untuk payload 64 KiB – 16 MiB pada {{ rayon_threads }} thread Rayon ({{ logical_cpus }} CPU logis). Ini pengukuran <strong>crypto-only</strong>, terpisah dari throughput end-to-end pipeline, dan bukan hasil jaringan IPFS.</p>
+    {% if shell.is_debug() %}
+    <p class="callout callout-warn">Server berjalan dalam build <code>debug</code>. Angka di bawah tidak representatif; gunakan <code>cargo run --release -p todo-web</code> dan Criterion untuk data tesis.</p>
+    {% endif %}
+  </div>
+  <button type="button" class="btn btn-primary" id="bench-run"><span class="spinner" aria-hidden="true"></span>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Jalankan benchmark
+  </button>
+</section>
+
+<section class="results" aria-live="polite" id="bench-results">
+  <div class="card empty-state" data-empty>
+    <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M14 50V30h8v20zm14 0V14h8v36zm14 0V36h8v14z" fill="currentColor" opacity=".3"/></svg>
+    <h3>Belum dijalankan</h3>
+    <p class="muted">Benchmark dapat memakan waktu beberapa detik. Hasil adalah rata-rata iterasi singkat; gunakan Criterion untuk interval kepercayaan.</p>
+  </div>
+  <div data-result hidden>
+    <article class="card">
+      <header class="card-head"><h3>Throughput (MiB/s)</h3>
+        <ul class="legend inline"><li><span class="sw fill-a"></span>Sekuensial</li><li><span class="sw fill-b"></span>Paralel</li></ul>
+      </header>
+      <div class="chart" data-chart></div>
+    </article>
+    <article class="card">
+      <header class="card-head"><h3>Detail</h3><button type="button" class="btn btn-sm btn-ghost" id="bench-export">Unduh JSON</button></header>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr>
+            <th scope="col">Payload</th><th scope="col">Segmen</th><th scope="col">Threads</th><th scope="col">Iterasi</th>
+            <th scope="col" class="num">Seq MiB/s</th><th scope="col" class="num">Par MiB/s</th><th scope="col" class="num">Speedup</th><th scope="col" class="num">Efisiensi</th><th scope="col">Tag</th>
+          </tr></thead>
+          <tbody data-rows></tbody>
+        </table>
+      </div>
+      <p class="hint">Speedup = latensi sekuensial / latensi paralel pada mesin ini. Efisiensi = speedup / threads. Payload yang hanya menghasilkan satu segmen tidak menjalankan jalur paralel.</p>
+    </article>
+  </div>
+</section>
+{% endblock %}

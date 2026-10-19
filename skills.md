@@ -30,7 +30,7 @@ Audit `Cargo.toml`, `Cargo.lock`, seluruh crate dan test **sebelum** mengasumsik
 
 Untuk perubahan lintas-crate gunakan kontrak port/trait; minimalkan dependencies timbal balik. Baca [references/WORKSPACE.md](references/WORKSPACE.md).
 
-## Invariant riset dan kriptografi (non-negotiable)
+````## Invariant riset dan kriptografi (non-negotiable)
 
 1. **Satu AEAD message:** whole-message sequential dan whole-message parallel menerima **compressed bytes yang identik**, AAD, key, nonce, dan menghasilkan **ciphertext + satu tag identik**. Segmen POLYVAL adalah batas komputasi, **bukan batas pesan AEAD**.
 2. **Baseline lain:** `independent-segment-aead` menghasilkan nonce/tag per segmen, autentikasi berbeda; **jangan uji kesamaan tag dengan whole-message**. Beri label sebagai sistem pembanding berbeda format.
@@ -43,8 +43,8 @@ Untuk perubahan lintas-crate gunakan kontrak port/trait; minimalkan dependencies
 9. Lakukan RFC test-vector + differential test upstream `aes-gcm-siv` + tamper/edge-case test sebelum menyebut correctness PASS. Kesetaraan output eksperimental bukan bukti formal keamanan.
 10. Source pengguna menunjukkan **3.936 B terkompresi dari 4 MiB sehingga hanya 1 POLYVAL segment @64KiB**. Jangan menyebut hasil pipeline itu sebagai bukti speedup paralel end-to-end.
 
-**Wajib baca [references/CRYPTO_CORRECTNESS.md](references/CRYPTO_CORRECTNESS.md) sebelum menyentuh implementasi crypto, tag, chunk merge, atau decryption.**
-
+**Wajib baca [references/CRYPTO_CORRECTNESS.md](references/CRYPTO_CORRECTNESS.md) sebelum menyentuh implementasi crypto, tag, chunk merge, ata u decryption.**
+````
 ## Alur pipeline yang benar
 
 ```text
